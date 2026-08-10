@@ -11,6 +11,7 @@ import mongoose from 'mongoose';
 
 import connectDB from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
+import mailSender from './utils/mailSender.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -34,7 +35,7 @@ const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 
 // Middleware
-app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(helmet({ crossOriginResourcePolicy: false, contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -53,6 +54,42 @@ app.get('/api/health', (req, res) => {
       ? 'Connected'
       : 'Offline',
   });
+});
+
+// Live SMTP Diagnostic Test Endpoint
+app.get('/api/test-email', async (req, res) => {
+  try {
+    const mailUser = process.env.MAIL_USER ? process.env.MAIL_USER.trim().replace(/["']/g, '') : '';
+    const mailPass = process.env.MAIL_PASS ? process.env.MAIL_PASS.trim().replace(/["']/g, '') : '';
+
+    if (!mailUser || !mailPass) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing MAIL_USER or MAIL_PASS in Render Environment Variables',
+        configuredUser: mailUser || 'EMPTY',
+        passLength: mailPass.length,
+      });
+    }
+
+    const testResult = await mailSender(
+      mailUser,
+      'ExpensePilot Render Live Test Email',
+      '<h2>Render SMTP Live Diagnostic Test Success! 🎉</h2>'
+    );
+
+    return res.json({
+      success: true,
+      message: `Test email successfully dispatched to ${mailUser}`,
+      result: testResult,
+    });
+  } catch (err) {
+    console.error('Diagnostic email error:', err);
+    return res.status(500).json({
+      success: false,
+      errorName: err.name,
+      errorMessage: err.message,
+    });
+  }
 });
 
 // Database check
