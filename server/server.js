@@ -1,5 +1,6 @@
 import 'dotenv/config';
 
+import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -86,9 +87,14 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/reports', reportsRoutes);
 
-// React Router fallback
-app.get(/^(?!\/api).*/, (req, res) => {
-  res.sendFile(path.join(DIST, 'index.html'));
+// React Router fallback for SPA non-API routes
+app.get(/^(?!\/api).*/, (req, res, next) => {
+  const indexFile = path.join(DIST, 'index.html');
+  if (fs.existsSync(indexFile)) {
+    res.sendFile(indexFile);
+  } else {
+    next();
+  }
 });
 
 // Error handling
