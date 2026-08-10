@@ -21,12 +21,12 @@ export const authService = {
       otp: generatedOtp,
     });
 
-    // 2. Send email after DB save (non-blocking — don't await)
-    mailSender(
+    // 2. Send email via SMTP (await to prevent cloud container process cutoff)
+    await mailSender(
       cleanEmail,
       'Verification Email from ExpensePilot',
       emailTemplate(generatedOtp)
-    ).catch((err) => console.error('OTP email send error:', err.message));
+    );
 
     return { email: cleanEmail };
   },
@@ -137,12 +137,12 @@ export const authService = {
     // 1. Save OTP to DB first
     await OTP.create({ email: cleanEmail, otp: generatedOtp });
 
-    // 2. Send email after DB save (non-blocking)
-    mailSender(
+    // 2. Send email via SMTP (await to prevent cloud container process cutoff)
+    await mailSender(
       cleanEmail,
       'Password Reset OTP from ExpensePilot',
       emailTemplate(generatedOtp)
-    ).catch((err) => console.error('Forgot password email error:', err.message));
+    );
 
     return { email: cleanEmail };
   },
