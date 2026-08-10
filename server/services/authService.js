@@ -4,6 +4,8 @@ import User from '../models/User.js';
 import OTP from '../models/OTP.js';
 import generateToken from '../utils/generateToken.js';
 import { uploadImageToCloudinary } from '../config/cloudinary.js';
+import mailSender from '../utils/mailSender.js';
+import emailTemplate from '../mail/templates/emailVerificationTemplate.js';
 
 export const authService = {
   /**
@@ -13,14 +15,18 @@ export const authService = {
     const cleanEmail = email.trim().toLowerCase();
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    try {
-      await OTP.create({
-        email: cleanEmail,
-        otp: generatedOtp,
-      });
-    } catch (err) {
-      console.warn('OTP creation note:', err.message);
-    }
+    // 1. Save OTP to DB first
+    await OTP.create({
+      email: cleanEmail,
+      otp: generatedOtp,
+    });
+
+    // 2. Send email after DB save (non-blocking — don't await)
+    mailSender(
+      cleanEmail,
+      'Verification Email from ExpensePilot',
+      emailTemplate(generatedOtp)
+    ).catch((err) => console.error('OTP email send error:', err.message));
 
     return { email: cleanEmail };
   },
@@ -127,11 +133,16 @@ export const authService = {
     }
 
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    try {
-      await OTP.create({ email: cleanEmail, otp: generatedOtp });
-    } catch (otpErr) {
-      console.warn('OTP creation note:', otpErr.message);
-    }
+
+    // 1. Save OTP to DB first
+    await OTP.create({ email: cleanEmail, otp: generatedOtp });
+
+    // 2. Send email after DB save (non-blocking)
+    mailSender(
+      cleanEmail,
+      'Password Reset OTP from ExpensePilot',
+      emailTemplate(generatedOtp)
+    ).catch((err) => console.error('Forgot password email error:', err.message));
 
     return { email: cleanEmail };
   },
