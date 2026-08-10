@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import User from '../models/User.js';
 import OTP from '../models/OTP.js';
 import generateToken from '../utils/generateToken.js';
@@ -76,7 +77,7 @@ export const authService = {
       _id: user._id,
       name: user.name,
       email: user.email,
-      avatar: user.avatar,
+      avatar: user.avatar || '',
       currency: user.currency,
       timezone: user.timezone,
       language: user.language,
@@ -106,7 +107,7 @@ export const authService = {
       _id: user._id,
       name: user.name,
       email: user.email,
-      avatar: user.avatar,
+      avatar: user.avatar || '',
       currency: user.currency,
       timezone: user.timezone,
       language: user.language,
@@ -185,8 +186,17 @@ export const authService = {
     if (payload.themePreference) user.themePreference = payload.themePreference;
 
     if (file) {
-      user.avatar = await uploadImageToCloudinary(file, 'Expense tracker');
-      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      if (process.env.CLOUD_NAME && process.env.API_KEY && process.env.API_SECRET) {
+        try {
+          user.avatar = await uploadImageToCloudinary(file, 'Expense tracker');
+          if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        } catch (cloudErr) {
+          console.warn('Cloudinary upload failed, falling back to local static URL:', cloudErr.message);
+          user.avatar = `/uploads/${path.basename(file.path)}`;
+        }
+      } else {
+        user.avatar = `/uploads/${path.basename(file.path)}`;
+      }
     } else if (payload.avatar) {
       user.avatar = payload.avatar;
     }
@@ -202,7 +212,7 @@ export const authService = {
       _id: updatedUser._id,
       name: updatedUser.name,
       email: updatedUser.email,
-      avatar: updatedUser.avatar,
+      avatar: updatedUser.avatar || '',
       currency: updatedUser.currency,
       timezone: updatedUser.timezone,
       language: updatedUser.language,

@@ -141,7 +141,7 @@ const Register = () => {
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-800/90 border border-indigo-500/80 rounded-xl text-sm text-white placeholder-slate-500 font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
                 />
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Check your email inbox or backend console for the OTP code.</p>
+              <p className="text-[11px] text-slate-400 mt-1">Check your email inbox (and spam folder) for the 6-digit OTP code.</p>
               {errors.otp && <p className="text-xs text-rose-400 mt-1">{errors.otp.message}</p>}
             </div>
           )}

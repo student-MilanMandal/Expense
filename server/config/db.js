@@ -13,9 +13,7 @@ export const connect = async () => {
 
     await mongoose.connect(mongoUri);
 
-    console.log('====================================================');
-    console.log('✅ DB CONNECTION SUCCESSFUL');
-    console.log('====================================================');
+    console.log('DB CONNECTION SUCCESSFUL');
   } catch (error) {
     console.error('❌ DB Connection Failed:', error.message);
     process.exit(1);

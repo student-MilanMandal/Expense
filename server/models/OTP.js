@@ -23,13 +23,13 @@ async function sendVerificationEmail(email, otp) {
   try {
     const mailResponse = await mailSender(
       email,
-      'Verification Email from Smart Khata',
+      'Verification Email from ExpensePilot',
       emailTemplate(otp)
     );
-    console.log('Email sent Successfully: ', mailResponse);
+    console.log('✅ Email sent result:', mailResponse ? mailResponse.messageId : 'Logged to console');
   } catch (error) {
-    console.log('error occurred while sending mails: ', error);
-    throw error;
+    console.error('❌ Error occurred while sending email:', error.message);
+    console.log(`🔑 Verification OTP for ${email}: ${otp}`);
   }
 }
 
