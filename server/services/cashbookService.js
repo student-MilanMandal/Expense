@@ -1,0 +1,209 @@
+import CashBook from '../models/CashBook.js';
+import Income from '../models/Income.js';
+import Expense from '../models/Expense.js';
+import mailSender from '../utils/mailSender.js';
+import { cashEntryTemplate } from '../mail/templates/emailTemplates.js';
+import { parseInputDate } from '../utils/dateUtils.js';
+
+const getStartOfDay = (dateString) => {
+  if (!dateString) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return new Date(`${year}-${month}-${day}T12:00:00.000Z`);
+  }
+  return parseInputDate(dateString);
+};
+
+const getOpeningBalanceForDate = async (userId, targetDate) => {
+  const previousRecord = await CashBook.findOne({
+    user: userId,
+    date: { $lt: targetDate },
+  }).sort({ date: -1 });
+
+  if (previousRecord) {
+    return previousRecord.closingBalance;
+  }
+
+  const [priorIncomeAgg, priorExpenseAgg] = await Promise.all([
+    Income.aggregate([
+      { $match: { user: userId, date: { $lt: targetDate } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]),
+    Expense.aggregate([
+      { $match: { user: userId, date: { $lt: targetDate } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]),
+  ]);
+
+  const priorInc = priorIncomeAgg.length > 0 ? priorIncomeAgg[0].total : 0;
+  const priorExp = priorExpenseAgg.length > 0 ? priorExpenseAgg[0].total : 0;
+  const netPrior = priorInc - priorExp;
+
+  if (netPrior > 0) return netPrior;
+
+  const [totalIncAgg, totalExpAgg] = await Promise.all([
+    Income.aggregate([
+      { $match: { user: userId } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]),
+    Expense.aggregate([
+      { $match: { user: userId } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]),
+  ]);
+
+  const totalInc = totalIncAgg.length > 0 ? totalIncAgg[0].total : 0;
+  const totalExp = totalExpAgg.length > 0 ? totalExpAgg[0].total : 0;
+
+  return Math.max(0, totalInc - totalExp);
+};
+
+export const cashbookService = {
+  /**
+   * Add a cash in / cash out entry and re-calculate running balance
+   */
+  addCashEntry: async (userId, payload, userObj) => {
+    let { type, amount, date, notes } = payload;
+
+    if (type === 'CASH_IN') type = 'IN';
+    if (type === 'CASH_OUT') type = 'OUT';
+
+    const numAmount = Number(amount);
+    const entryDate = getStartOfDay(date);
+
+    let cashBook = await CashBook.findOne({ user: userId, date: entryDate });
+
+    if (!cashBook) {
+      const openingBalance = await getOpeningBalanceForDate(userId, entryDate);
+      cashBook = new CashBook({
+        user: userId,
+        date: entryDate,
+        openingBalance,
+        totalCashIn: 0,
+        totalCashOut: 0,
+        closingBalance: openingBalance,
+        entries: [],
+      });
+    }
+
+    cashBook.entries.push({
+      type,
+      amount: numAmount,
+      notes: notes || '',
+      date: new Date(),
+    });
+
+    if (type === 'IN') {
+      cashBook.totalCashIn += numAmount;
+    } else if (type === 'OUT') {
+      cashBook.totalCashOut += numAmount;
+    }
+
+    cashBook.closingBalance = cashBook.openingBalance + cashBook.totalCashIn - cashBook.totalCashOut;
+    await cashBook.save();
+
+    if (userObj?.email) {
+      const subject = `💵 Cash ${type === 'IN' ? 'In (Received)' : 'Out (Paid)'}: ₹${numAmount.toLocaleString('en-IN')}`;
+      const htmlBody = cashEntryTemplate({
+        userName: userObj.name,
+        type: type === 'IN' ? 'CASH IN' : 'CASH OUT',
+        amount: numAmount,
+        notes,
+        closingBalance: cashBook.closingBalance,
+        date: new Date(),
+      });
+      mailSender(userObj.email, subject, htmlBody).catch((err) =>
+        console.error('Cash email error:', err)
+      );
+    }
+
+    return cashBook;
+  },
+
+  /**
+   * Get daily cashbook summary for a given date
+   */
+  getDailySummary: async (userId, dateQuery) => {
+    const targetDate = getStartOfDay(dateQuery);
+
+    let cashBook = await CashBook.findOne({ user: userId, date: targetDate });
+
+    if (!cashBook) {
+      const openingBalance = await getOpeningBalanceForDate(userId, targetDate);
+      return {
+        date: targetDate,
+        openingBalance,
+        totalCashIn: 0,
+        totalCashOut: 0,
+        closingBalance: openingBalance,
+        entries: [],
+      };
+    }
+
+    return cashBook;
+  },
+
+  /**
+   * Update / Override Opening Balance for a specific date
+   */
+  updateOpeningBalance: async (userId, payload) => {
+    const { openingBalance, date } = payload;
+    const targetDate = getStartOfDay(date);
+    const numOpening = Number(openingBalance) || 0;
+
+    let cashBook = await CashBook.findOne({ user: userId, date: targetDate });
+    if (!cashBook) {
+      cashBook = new CashBook({
+        user: userId,
+        date: targetDate,
+        openingBalance: numOpening,
+        totalCashIn: 0,
+        totalCashOut: 0,
+        closingBalance: numOpening,
+        entries: [],
+      });
+    } else {
+      cashBook.openingBalance = numOpening;
+      cashBook.closingBalance = cashBook.openingBalance + cashBook.totalCashIn - cashBook.totalCashOut;
+    }
+
+    await cashBook.save();
+    return cashBook;
+  },
+
+  /**
+   * Get CashBook history entries across dates
+   */
+  getCashBookHistory: async (userId, queryParams) => {
+    const limit = Number(queryParams.limit) || 30;
+    const history = await CashBook.find({ user: userId }).sort({ date: -1 }).limit(limit);
+    return history;
+  },
+
+  /**
+   * Delete cash entry from CashBook document
+   */
+  deleteCashEntry: async (userId, dateQuery, entryId) => {
+    const targetDate = getStartOfDay(dateQuery);
+    const cashBook = await CashBook.findOne({ user: userId, date: targetDate });
+
+    if (!cashBook) return null;
+
+    const entry = cashBook.entries.id(entryId);
+    if (!entry) return null;
+
+    if (entry.type === 'IN') {
+      cashBook.totalCashIn -= entry.amount;
+    } else if (entry.type === 'OUT') {
+      cashBook.totalCashOut -= entry.amount;
+    }
+
+    entry.deleteOne();
+    cashBook.closingBalance = cashBook.openingBalance + cashBook.totalCashIn - cashBook.totalCashOut;
+    await cashBook.save();
+
+    return cashBook;
+  },
+};

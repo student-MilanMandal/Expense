@@ -1,0 +1,296 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --bg-primary: #f4f9fa;
+    --bg-card: #ffffff;
+    --text-primary: #001b48;
+    --text-secondary: #475569;
+    --border-color: #e2e8f0;
+
+    --brand-teal: #089790;
+    --brand-deep-teal: #055b5c;
+    --brand-ocean: #018abe;
+    --brand-mint: #86e3ce;
+    --brand-coral: #e25b45;
+    --brand-peach: #fa897b;
+    --brand-gold: #fac172;
+    --brand-violet: #8474a1;
+    --brand-sky: #97cadb;
+  }
+
+  .dark {
+    --bg-primary: #050b14;
+    --bg-card: #0a1325;
+    --text-primary: #f0f8fa;
+    --text-secondary: #97cadb;
+    --border-color: #1f4759;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+
+  * {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(203, 213, 225, 0.5) transparent;
+  }
+
+  .dark * {
+    scrollbar-color: rgba(51, 65, 85, 0.5) transparent;
+  }
+}
+
+/* Custom Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(203, 213, 225, 0.6);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.6);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.9);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.9);
+}
+
+/* Utility to hide scrollbars cleanly */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom Modern Toastify Styling */
+.Toastify__toast {
+  border-radius: 1.25rem !important;
+  font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif !important;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  padding: 14px 18px !important;
+}
+
+/* Light Mode Toast Card */
+.Toastify__toast--light,
+.Toastify__toast-theme--light,
+.Toastify__toast--colored {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #f1f5f9 !important;
+}
+
+.dark .Toastify__toast--light,
+.dark .Toastify__toast-theme--light,
+.dark .Toastify__toast--colored,
+.Toastify__toast--dark,
+.Toastify__toast-theme--dark {
+  background: #0d121f !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Toast Icon & Close Button */
+.Toastify__toast-icon svg {
+  fill: #10b981 !important;
+}
+
+.Toastify__toast--error .Toastify__toast-icon svg {
+  fill: #f43f5e !important;
+}
+
+.Toastify__close-button {
+  color: #94a3b8 !important;
+  opacity: 0.8 !important;
+}
+
+.Toastify__progress-bar--success,
+.Toastify__progress-bar--colored.Toastify__progress-bar--success {
+  background: #10b981 !important;
+}
+
+.Toastify__progress-bar--error,
+.Toastify__progress-bar--colored.Toastify__progress-bar--error {
+  background: #f43f5e !important;
+}
+
+/* Glassmorphism helpers */
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(110, 198, 202, 0.2);
+}
+
+.dark .glass-card {
+  background: rgba(10, 19, 37, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(31, 71, 89, 0.4);
+}
+
+/* Palette Gradient Text */
+.gradient-text {
+  background: linear-gradient(135deg, #018abe 0%, #089790 50%, #8474a1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-teal {
+  background: linear-gradient(135deg, #018abe 0%, #089790 100%);
+}
+
+.gradient-coral {
+  background: linear-gradient(135deg, #e25b45 0%, #fa897b 100%);
+}
+
+/* Crisp Dark Mode Date Picker Calendar Indicator Icon */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.95) brightness(1.3) drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+  cursor: pointer;
+  opacity: 0.95;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  filter: invert(1) drop-shadow(0 0 5px rgba(99, 102, 241, 0.9));
+  transform: scale(1.1);
+}
+
+/* Print Friendly Styles for PDF Export */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-family: 'Plus Jakarta Sans', Arial, sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app frame, sidebar, header, navbar and no-print elements */
+  aside,
+  header,
+  nav,
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Reset main content container for clean full-width print */
+  main, div {
+    box-shadow: none !important;
+  }
+
+  .report-print-card {
+    border: none !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .report-print-card * {
+    color: #0f172a !important;
+  }
+
+  .report-print-card h1,
+  .report-print-card h2,
+  .report-print-card h3,
+  .report-print-card strong,
+  .report-print-card p,
+  .report-print-card span {
+    color: #0f172a !important;
+  }
+
+  .report-print-card .text-indigo-600,
+  .report-print-card .text-indigo-400,
+  .report-print-card .text-indigo-700 {
+    color: #4f46e5 !important;
+  }
+
+  .report-print-card .bg-slate-100,
+  .report-print-card .bg-slate-50 {
+    background-color: #f1f5f9 !important;
+  }
+
+  .overflow-x-auto {
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  table {
+    width: 100% !important;
+    table-layout: auto !important;
+    border-collapse: collapse !important;
+  }
+
+  table th {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    padding: 10px 12px !important;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    border: 1px solid #0f172a !important;
+  }
+
+  table td {
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 9px 12px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+  }
+
+  table tr:nth-child(even) td {
+    background-color: #f8fafc !important;
+  }
+}
