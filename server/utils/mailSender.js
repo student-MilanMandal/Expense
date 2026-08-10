@@ -1,21 +1,24 @@
 import nodemailer from 'nodemailer';
 
 const mailSender = async (email, title, body) => {
-  const mailUser = process.env.MAIL_USER;
-  const mailPass = process.env.MAIL_PASS;
+  const mailUser = process.env.MAIL_USER ? process.env.MAIL_USER.trim().replace(/["']/g, '') : '';
+  const mailPass = process.env.MAIL_PASS ? process.env.MAIL_PASS.trim().replace(/["']/g, '') : '';
 
   if (!mailUser || !mailPass) {
-    console.error('❌ SMTP Error: MAIL_USER or MAIL_PASS environment variables are missing on the server.');
-    return null;
+    const missingMsg = 'SMTP credentials (MAIL_USER / MAIL_PASS) are missing in Render Environment Variables.';
+    console.error(`❌ SMTP Error: ${missingMsg}`);
+    throw new Error(missingMsg);
   }
 
-  // Attempt 1: Standard Gmail Service with strict 5s connection timeout
+  // Attempt 1: Gmail Port 465 Direct SSL (Most reliable for Render Linux containers)
   try {
     let transporter1 = nodemailer.createTransport({
-      service: 'gmail',
-      connectionTimeout: 5000,
-      greetingTimeout: 5000,
-      socketTimeout: 8000,
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      connectionTimeout: 7000,
+      greetingTimeout: 7000,
+      socketTimeout: 10000,
       auth: {
         user: mailUser,
         pass: mailPass,
@@ -32,24 +35,18 @@ const mailSender = async (email, title, body) => {
       html: `${body}`,
     });
 
-    console.log('✅ Mail sent successfully (service: gmail):', info1.messageId);
+    console.log('✅ Mail sent successfully (Port 465 SSL):', info1.messageId);
     return info1;
   } catch (err1) {
-    console.warn('⚠️ Gmail service transport failed, trying fallback to explicit SMTP port 587...', err1.message);
+    console.warn('⚠️ Port 465 SSL transport failed, attempting fallback to service gmail:', err1.message);
 
-    // Attempt 2: Explicit SMTP Host Port 587 STARTTLS (Render Cloud Compatible)
+    // Attempt 2: Fallback Service Gmail / STARTTLS Port 587
     try {
-      const host = process.env.MAIL_HOST || 'smtp.gmail.com';
-      const port = Number(process.env.MAIL_PORT) || 587;
-
       let transporter2 = nodemailer.createTransport({
-        host: host,
-        port: port,
-        secure: port === 465,
-        requireTLS: true,
-        connectionTimeout: 5000,
-        greetingTimeout: 5000,
-        socketTimeout: 8000,
+        service: 'gmail',
+        connectionTimeout: 7000,
+        greetingTimeout: 7000,
+        socketTimeout: 10000,
         auth: {
           user: mailUser,
           pass: mailPass,
@@ -66,11 +63,11 @@ const mailSender = async (email, title, body) => {
         html: `${body}`,
       });
 
-      console.log('✅ Mail sent successfully (explicit SMTP 587):', info2.messageId);
+      console.log('✅ Mail sent successfully (Service Gmail):', info2.messageId);
       return info2;
     } catch (err2) {
-      console.error('❌ Both Gmail service and explicit SMTP transports failed:', err2.message);
-      return null;
+      console.error('❌ Both Gmail SMTP transports failed on server:', err2.message);
+      throw new Error(`Email Delivery Failed: ${err2.message || 'SMTP Server Error'}`);
     }
   }
 };

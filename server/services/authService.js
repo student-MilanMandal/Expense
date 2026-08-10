@@ -21,12 +21,12 @@ export const authService = {
       otp: generatedOtp,
     });
 
-    // 2. Dispatch email asynchronously (fire & forget with logging)
-    mailSender(
+    // 2. Send email via SMTP (await to verify delivery success)
+    await mailSender(
       cleanEmail,
       'Verification Email from ExpensePilot',
       emailTemplate(generatedOtp)
-    ).catch((err) => console.error('OTP mail error:', err.message));
+    );
 
     return { email: cleanEmail };
   },
@@ -137,12 +137,12 @@ export const authService = {
     // 1. Save OTP to DB first
     await OTP.create({ email: cleanEmail, otp: generatedOtp });
 
-    // 2. Dispatch email asynchronously
-    mailSender(
+    // 2. Send email via SMTP (await to verify delivery success)
+    await mailSender(
       cleanEmail,
       'Password Reset OTP from ExpensePilot',
       emailTemplate(generatedOtp)
-    ).catch((err) => console.error('Forgot password mail error:', err.message));
+    );
 
     return { email: cleanEmail };
   },
