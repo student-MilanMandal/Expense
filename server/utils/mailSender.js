@@ -2,34 +2,43 @@ import nodemailer from 'nodemailer';
 
 const mailSender = async (email, title, body) => {
   try {
-    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
-      console.warn('⚠️ SMTP mail credentials (MAIL_USER / MAIL_PASS) are missing on server.');
+    const mailUser = process.env.MAIL_USER;
+    const mailPass = process.env.MAIL_PASS;
+
+    if (!mailUser || !mailPass) {
+      console.warn('⚠️ SMTP mail credentials (MAIL_USER / MAIL_PASS) are missing on server environment variables.');
       return null;
     }
 
+    const host = process.env.MAIL_HOST || 'smtp.gmail.com';
+    const port = Number(process.env.MAIL_PORT) || 587;
+
     let transporter = nodemailer.createTransport({
-      service: 'gmail',
-      family: 4, // Force IPv4 to prevent 21-second IPv6 network timeouts
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 10000,
+      host: host,
+      port: port,
+      secure: port === 465, // true for 465, false for 587
+      requireTLS: true,
       auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASS,
+        user: mailUser,
+        pass: mailPass,
+      },
+      tls: {
+        rejectUnauthorized: false, // Prevents SSL certificate handshake issues on cloud containers like Render
       },
     });
 
     let info = await transporter.sendMail({
-      from: `"ExpensePilot Smart Expense Tracker" <${process.env.MAIL_USER}>`,
+      from: `"ExpensePilot Smart Expense Tracker" <${mailUser}>`,
       to: `${email}`,
       subject: `${title}`,
       html: `${body}`,
     });
 
+    console.log('✅ Cloud Mail sent successfully:', info.messageId);
     return info;
 
   } catch (error) {
-    console.error('❌ Mail send error:', error.message);
+    console.error('❌ Cloud Mail send error:', error.message || error);
     return null;
   }
 };
