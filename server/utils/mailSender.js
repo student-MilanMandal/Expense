@@ -5,19 +5,18 @@ const mailSender = async (email, title, body) => {
   const mailPass = process.env.MAIL_PASS ? process.env.MAIL_PASS.trim().replace(/["']/g, '') : '';
 
   if (!mailUser || !mailPass) {
-    const missingMsg = 'SMTP credentials (MAIL_USER / MAIL_PASS) are missing in Render Environment Variables.';
+    const missingMsg = 'SMTP credentials (MAIL_USER / MAIL_PASS) are missing on Render Environment Variables.';
     console.error(`❌ SMTP Error: ${missingMsg}`);
     throw new Error(missingMsg);
   }
 
-  // Attempt 1: Gmail Port 465 Direct SSL (Most reliable for Render Linux containers)
+  // Method 1: Gmail Service with explicit IPv4 family forcing (bypasses Render IPv6 DNS timeouts)
   try {
     let transporter1 = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      connectionTimeout: 7000,
-      greetingTimeout: 7000,
+      service: 'gmail',
+      family: 4, // Force IPv4 socket connection on Linux cloud containers
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
       socketTimeout: 10000,
       auth: {
         user: mailUser,
@@ -35,17 +34,20 @@ const mailSender = async (email, title, body) => {
       html: `${body}`,
     });
 
-    console.log('✅ Mail sent successfully (Port 465 SSL):', info1.messageId);
+    console.log('✅ Gmail Mail sent successfully (Method 1 - Service IPv4):', info1.messageId);
     return info1;
   } catch (err1) {
-    console.warn('⚠️ Port 465 SSL transport failed, attempting fallback to service gmail:', err1.message);
+    console.warn('⚠️ Method 1 failed, trying Method 2 (Port 465 SSL IPv4):', err1.message);
 
-    // Attempt 2: Fallback Service Gmail / STARTTLS Port 587
+    // Method 2: Direct SSL Port 465 with IPv4 family forcing
     try {
       let transporter2 = nodemailer.createTransport({
-        service: 'gmail',
-        connectionTimeout: 7000,
-        greetingTimeout: 7000,
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        family: 4,
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
         socketTimeout: 10000,
         auth: {
           user: mailUser,
@@ -63,11 +65,44 @@ const mailSender = async (email, title, body) => {
         html: `${body}`,
       });
 
-      console.log('✅ Mail sent successfully (Service Gmail):', info2.messageId);
+      console.log('✅ Gmail Mail sent successfully (Method 2 - Port 465 SSL):', info2.messageId);
       return info2;
     } catch (err2) {
-      console.error('❌ Both Gmail SMTP transports failed on server:', err2.message);
-      throw new Error(`Email Delivery Failed: ${err2.message || 'SMTP Server Error'}`);
+      console.warn('⚠️ Method 2 failed, trying Method 3 (Port 587 STARTTLS IPv4):', err2.message);
+
+      // Method 3: STARTTLS Port 587 with IPv4 family forcing
+      try {
+        let transporter3 = nodemailer.createTransport({
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          requireTLS: true,
+          family: 4,
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 10000,
+          auth: {
+            user: mailUser,
+            pass: mailPass,
+          },
+          tls: {
+            rejectUnauthorized: false,
+          },
+        });
+
+        let info3 = await transporter3.sendMail({
+          from: `"ExpensePilot Smart Expense Tracker" <${mailUser}>`,
+          to: `${email}`,
+          subject: `${title}`,
+          html: `${body}`,
+        });
+
+        console.log('✅ Gmail Mail sent successfully (Method 3 - Port 587):', info3.messageId);
+        return info3;
+      } catch (err3) {
+        console.error('❌ All 3 Gmail SMTP methods failed:', err3.message);
+        throw new Error(`Gmail SMTP delivery failed: ${err3.message || 'Connection timeout'}`);
+      }
     }
   }
 };
