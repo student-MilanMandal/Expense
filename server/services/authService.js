@@ -15,18 +15,18 @@ export const authService = {
     const cleanEmail = email.trim().toLowerCase();
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 1. Save OTP to DB first
+    // 1. Save OTP to DB instantly
     await OTP.create({
       email: cleanEmail,
       otp: generatedOtp,
     });
 
-    // 2. Send email via SMTP (await to prevent cloud container process cutoff)
-    await mailSender(
+    // 2. Dispatch email asynchronously (fire & forget with logging)
+    mailSender(
       cleanEmail,
       'Verification Email from ExpensePilot',
       emailTemplate(generatedOtp)
-    );
+    ).catch((err) => console.error('OTP mail error:', err.message));
 
     return { email: cleanEmail };
   },
@@ -137,12 +137,12 @@ export const authService = {
     // 1. Save OTP to DB first
     await OTP.create({ email: cleanEmail, otp: generatedOtp });
 
-    // 2. Send email via SMTP (await to prevent cloud container process cutoff)
-    await mailSender(
+    // 2. Dispatch email asynchronously
+    mailSender(
       cleanEmail,
       'Password Reset OTP from ExpensePilot',
       emailTemplate(generatedOtp)
-    );
+    ).catch((err) => console.error('Forgot password mail error:', err.message));
 
     return { email: cleanEmail };
   },

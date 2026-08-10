@@ -6,13 +6,16 @@ const mailSender = async (email, title, body) => {
 
   if (!mailUser || !mailPass) {
     console.error('❌ SMTP Error: MAIL_USER or MAIL_PASS environment variables are missing on the server.');
-    throw new Error('SMTP credentials (MAIL_USER / MAIL_PASS) are missing on server configuration.');
+    return null;
   }
 
-  // Attempt 1: Standard Gmail Service with SSL/TLS bypass
+  // Attempt 1: Standard Gmail Service with strict 5s connection timeout
   try {
     let transporter1 = nodemailer.createTransport({
       service: 'gmail',
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 8000,
       auth: {
         user: mailUser,
         pass: mailPass,
@@ -32,7 +35,7 @@ const mailSender = async (email, title, body) => {
     console.log('✅ Mail sent successfully (service: gmail):', info1.messageId);
     return info1;
   } catch (err1) {
-    console.warn('⚠️ Gmail service transport failed, attempting fallback to explicit SMTP host port 587:', err1.message);
+    console.warn('⚠️ Gmail service transport failed, trying fallback to explicit SMTP port 587...', err1.message);
 
     // Attempt 2: Explicit SMTP Host Port 587 STARTTLS (Render Cloud Compatible)
     try {
@@ -44,6 +47,9 @@ const mailSender = async (email, title, body) => {
         port: port,
         secure: port === 465,
         requireTLS: true,
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 8000,
         auth: {
           user: mailUser,
           pass: mailPass,
@@ -64,7 +70,7 @@ const mailSender = async (email, title, body) => {
       return info2;
     } catch (err2) {
       console.error('❌ Both Gmail service and explicit SMTP transports failed:', err2.message);
-      throw new Error(`SMTP Mail delivery failed: ${err2.message || 'Connection timeout'}`);
+      return null;
     }
   }
 };
