@@ -32,8 +32,9 @@ const Register = () => {
   });
 
   const handleSendOTP = async () => {
-    const email = getValues('email');
-    if (!email || !/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
+    const rawEmail = getValues('email');
+    const email = rawEmail ? rawEmail.trim().toLowerCase() : '';
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast.error('Please enter a valid email address first');
       return;
     }
