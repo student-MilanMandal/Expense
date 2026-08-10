@@ -1,16 +1,85 @@
-# React + Vite
+# 🚀 ExpensePilot - AI Expense Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **Created by [Milan Mandal](https://github.com/student-MilanMandal)**
 
-Currently, two official plugins are available:
+ExpensePilot is a full-stack, AI-powered personal finance management web application. It helps users track income, manage expenses, set budget limits, analyze financial habits with visual charts, scan receipts with OCR, and handle loans/khata entries effortlessly.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## ✨ Key Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- 📊 **Interactive Dashboard**: Real-time summary cards, monthly expense trends, and quick financial stats.
+- 💸 **Income & Expense Management**: Categorize transactions, add payment methods, filter and search easily.
+- 🧾 **AI Smart Receipt Scanner (OCR)**: Automatically extracts total amount and details from receipt images using Tesseract.js.
+- 📖 **KhataBook & Loans**: Track money given/taken (Dena-Paona), loan history, and repayment status.
+- 💵 **CashBook**: Maintain daily cash-in and cash-out records seamlessly.
+- 🎯 **Budgets & Savings Goals**: Set monthly budget caps and track progress towards savings goals.
+- 📈 **Analytics & Reports**: Interactive charts (Chart.js), detailed financial insights, and export options.
+- 🔐 **Authentication & Security**: Secure JWT login/register, password reset via OTP/Email, and protected routes.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Tech Stack
+
+### **Frontend**
+- **Framework**: React 19 (Vite)
+- **Styling**: Tailwind CSS & Vanilla CSS
+- **State Management**: Redux Toolkit & React Query
+- **Charts & Animations**: Chart.js, React-Chartjs-2 & Framer Motion
+- **OCR Engine**: Tesseract.js
+
+### **Backend**
+- **Runtime**: Node.js & Express.js
+- **Database**: MongoDB Atlas (Mongoose ORM)
+- **Auth**: JSON Web Tokens (JWT) & bcryptjs
+- **Mailing**: Nodemailer (SMTP)
+
+---
+
+## ⚡ Quick Start
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/student-MilanMandal/Expense.git
+cd Expense
+```
+
+### 2. Install dependencies
+```bash
+npm install
+```
+
+### 3. Configure Environment Variables (`.env`)
+Create a `.env` file in the root directory:
+```env
+PORT=5000
+MONGODB_URL=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
+MAIL_USER=your_email@gmail.com
+MAIL_PASS=your_email_app_password
+```
+
+### 4. Run Development Server
+```bash
+npm run dev
+```
+- Client runs on: `http://localhost:5173`
+- Server runs on: `http://localhost:5000`
+
+---
+
+## 💻 Scripts
+
+| Command | Description |
+| :--- | :--- |
+| `npm run dev` | Runs both client & server concurrently |
+| `npm run server` | Starts backend with nodemon |
+| `npm run client` | Starts frontend Vite dev server |
+| `npm run build` | Builds frontend for production |
+
+---
+
+## 👤 Author
+
+Developed with ❤️ by **Milan Mandal**  
+- **GitHub**: [@student-MilanMandal](https://github.com/student-MilanMandal)
