@@ -21,6 +21,8 @@ export const authService = {
       otp: generatedOtp,
     });
 
+    console.log(`🔑 [OTP SENT] Email: ${cleanEmail} | OTP Code: ${generatedOtp}`);
+
     // 2. Send email via SMTP (await to verify delivery success)
     await mailSender(
       cleanEmail,
@@ -136,6 +138,8 @@ export const authService = {
 
     // 1. Save OTP to DB first
     await OTP.create({ email: cleanEmail, otp: generatedOtp });
+
+    console.log(`🔑 [RESET OTP SENT] Email: ${cleanEmail} | OTP Code: ${generatedOtp}`);
 
     // 2. Send email via SMTP (await to verify delivery success)
     await mailSender(

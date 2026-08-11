@@ -51,6 +51,19 @@ const ForgotPassword = () => {
     }
   };
 
+  const handleResendOTP = async () => {
+    if (!emailSaved) return;
+    setLoading(true);
+    try {
+      await forgotPassword(emailSaved);
+      toast.success('A new OTP has been sent to your email!');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to resend OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-linear-to-br from-[#050B14] via-[#0A1325] to-[#1F4759] text-white">
       <div className="w-full max-w-md bg-[#0A1325]/90 backdrop-blur-xl border border-[#1F4759]/60 p-8 rounded-3xl shadow-2xl space-y-6">
@@ -100,7 +113,17 @@ const ForgotPassword = () => {
         ) : (
           <form onSubmit={handleSubmit(handleResetPassword)} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">6-Digit OTP</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-300">6-Digit OTP</label>
+                <button
+                  type="button"
+                  onClick={handleResendOTP}
+                  disabled={loading}
+                  className="text-xs text-[#86E3CE] hover:underline font-semibold disabled:opacity-50"
+                >
+                  Resend OTP
+                </button>
+              </div>
               <div className="relative">
                 <HiKey className="w-5 h-5 text-[#86E3CE] absolute left-3.5 top-3" />
                 <input
