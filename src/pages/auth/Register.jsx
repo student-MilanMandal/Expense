@@ -102,9 +102,21 @@ const Register = () => {
     setValue('otp', '');
   };
 
+  const onError = (formErrors) => {
+    const firstError = Object.values(formErrors)[0]?.message;
+    if (firstError) {
+      toast.error(firstError);
+    }
+  };
+
   const onSubmit = async (data) => {
     const rawEmail = data.email;
     data.email = rawEmail ? rawEmail.trim().toLowerCase() : '';
+
+    if (!otpSent && !isEmailVerified) {
+      toast.error('Please click "Send OTP" to verify your email first');
+      return;
+    }
 
     if (!isEmailVerified) {
       if (!data.otp || data.otp.trim().length !== 6) {
@@ -149,7 +161,7 @@ const Register = () => {
         </div>
 
         {/* Signup Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-4">
           {/* Full Name */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">Full Name</label>
