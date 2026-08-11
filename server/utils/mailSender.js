@@ -9,14 +9,14 @@ try {
 
 /**
  * Resend API Primary Email Sender with Automatic Gmail SMTP Backup
- * Uses user's Resend.com account (RESEND_API_KEY) as primary sender.
+ * Optimized with fast timeouts to prevent frontend request hanging.
  */
 const mailSender = async (email, title, body) => {
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
   const mailUser = process.env.MAIL_USER?.trim().replace(/["']/g, '');
   const mailPass = process.env.MAIL_PASS?.trim().replace(/["']/g, '');
 
-  // 1. Primary Method: Resend.com HTTP API
+  // 1. Primary Method: Resend.com HTTP API (Fast 3.5s timeout)
   if (resendApiKey) {
     try {
       const fromAddress = process.env.SENDER_EMAIL?.trim() || 'onboarding@resend.dev';
@@ -34,6 +34,7 @@ const mailSender = async (email, title, body) => {
           subject: title,
           html: body,
         }),
+        signal: AbortSignal.timeout(3500),
       });
 
       const data = await response.json();
@@ -43,14 +44,17 @@ const mailSender = async (email, title, body) => {
       }
       console.warn('⚠️ Resend API response notice:', data.message || JSON.stringify(data));
     } catch (resendErr) {
-      console.warn('⚠️ Resend API fetch error:', resendErr.message);
+      console.warn('⚠️ Resend API fast-fallback triggered:', resendErr.message);
     }
   }
 
-  // 2. Backup Method: Gmail SMTP (Guarantees delivery to ANY email address if Resend has unverified domain limits)
+  // 2. Backup Method: Gmail SMTP (Fast connection & socket timeouts)
   if (mailUser && mailPass) {
     const transporter = nodemailer.createTransport({
       service: 'gmail',
+      connectionTimeout: 6000,
+      greetingTimeout: 6000,
+      socketTimeout: 8000,
       auth: {
         user: mailUser,
         pass: mailPass,
@@ -64,7 +68,7 @@ const mailSender = async (email, title, body) => {
       html: body,
     });
 
-    console.log('✅ OTP Email delivered via Gmail SMTP (Backup):', info.messageId);
+    console.log('✅ OTP Email delivered via Gmail SMTP:', info.messageId);
     return info;
   }
 
