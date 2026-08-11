@@ -50,7 +50,7 @@ export const authService = {
   sendOTP: async (email) => {
     const cleanEmail = normalizeEmail(email);
 
-    // Check resend cooldown
+    // Check previous OTP for resend cooldown
     const latestOTP = await getLatestOTP(cleanEmail);
 
     if (latestOTP) {
@@ -68,33 +68,31 @@ export const authService = {
       }
     }
 
+    // Generate new OTP
     const generatedOtp = generateOTP();
 
-    /*
-     * Important:
-     * Do NOT save OTP before sending email.
-     * If email fails, OTP should not become valid in DB.
-     */
-
+    // IMPORTANT:
+    // First send email.
+    // Only save OTP if email sending succeeds.
     await mailSender(
       cleanEmail,
       'Verification OTP - ExpensePilot',
       emailTemplate(generatedOtp)
     );
 
-    // Email successfully sent, now save OTP
+    // Email successfully sent → save OTP
     await OTP.create({
       email: cleanEmail,
       otp: generatedOtp,
     });
 
-    // Remove older OTPs for the same email
+    // Delete previous OTPs
     await OTP.deleteMany({
       email: cleanEmail,
       otp: { $ne: generatedOtp },
     });
 
-    console.log(`✅ Verification OTP sent to ${cleanEmail}`);
+    console.log('✅ Verification OTP email sent successfully');
 
     return {
       email: cleanEmail,

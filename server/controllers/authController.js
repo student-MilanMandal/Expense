@@ -22,10 +22,12 @@ export const sendOTP = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in sendOTP controller:', error);
-    return res.status(400).json({
+    return res.status(500).json({
       success: false,
-      message: error.message || 'Failed to send OTP code via email. Please check server SMTP configuration.',
-    }); 
+      message:
+        error.message ||
+        'Failed to send OTP code via email. Please try again later.',
+    });
   }
 };
 
