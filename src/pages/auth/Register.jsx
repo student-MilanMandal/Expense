@@ -62,7 +62,12 @@ const Register = () => {
       setOtpSent(true);
       toast.success('Verification OTP code sent to your email!');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to send OTP code');
+      toast.error(
+        error.response?.data?.message ||
+          (error.code === 'ERR_NETWORK' || error.message?.includes('Network')
+            ? 'Cannot connect to backend server. Please ensure Node server is running on port 5000.'
+            : error.message || 'Failed to send OTP code')
+      );
     } finally {
       setSendingOtp(false);
     }

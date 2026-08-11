@@ -28,7 +28,12 @@ const ForgotPassword = () => {
       setStep(2);
       toast.success('Password reset OTP sent to your email!');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to request OTP');
+      toast.error(
+        error.response?.data?.message ||
+          (error.code === 'ERR_NETWORK' || error.message?.includes('Network')
+            ? 'Cannot connect to backend server. Please ensure Node server is running on port 5000.'
+            : error.message || 'Failed to request OTP')
+      );
     } finally {
       setLoading(false);
     }
