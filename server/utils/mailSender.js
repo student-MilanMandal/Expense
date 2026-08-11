@@ -50,9 +50,13 @@ const mailSender = async (email, title, body) => {
       command: error.command,
     });
 
-    throw new Error(
-      'Unable to send email. Please try again later.'
-    );
+    console.error('❌ Email sending failed:', {
+      message: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode,
+    });
   }
 };
 
