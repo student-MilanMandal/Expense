@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 
 /**
- * Resend Email Sender (Primary) with automatic Gmail SMTP fallback
+ * Resend Email Sender (Primary) with automatic Gmail SMTP fallback and strict timeouts
  */
 const mailSender = async (email, title, body) => {
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
@@ -13,6 +13,10 @@ const mailSender = async (email, title, body) => {
     try {
       const fromAddress = process.env.SENDER_EMAIL?.trim() || 'onboarding@resend.dev';
       const formattedFrom = fromAddress.includes('<') ? fromAddress : `ExpensePilot <${fromAddress}>`;
+
+      // 5 second timeout for Resend API request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -26,7 +30,10 @@ const mailSender = async (email, title, body) => {
           subject: title,
           html: body,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
       if (!response.ok) {
@@ -36,14 +43,14 @@ const mailSender = async (email, title, body) => {
       console.log('✅ Email sent via Resend API:', data.id);
       return data;
     } catch (resendErr) {
-      console.warn('⚠️ Resend API limitation/error, falling back to Gmail SMTP:', resendErr.message);
+      console.warn('⚠️ Resend API timeout/limitation, falling back to Gmail SMTP:', resendErr.message);
       if (!mailUser || !mailPass) {
         throw new Error(`Resend API Error: ${resendErr.message}`);
       }
     }
   }
 
-  // 2. Fallback Method: Gmail SMTP
+  // 2. Fallback Method: Gmail SMTP with 6-second socket timeout
   if (!mailUser || !mailPass) {
     throw new Error('Please set RESEND_API_KEY or MAIL_USER/MAIL_PASS in environment variables');
   }
@@ -53,6 +60,9 @@ const mailSender = async (email, title, body) => {
     port: 465,
     secure: true,
     family: 4,
+    connectionTimeout: 6000,
+    greetingTimeout: 6000,
+    socketTimeout: 6000,
     auth: {
       user: mailUser,
       pass: mailPass,
