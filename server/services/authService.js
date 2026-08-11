@@ -1,82 +1,187 @@
 import fs from 'fs';
 import path from 'path';
+
 import User from '../models/User.js';
 import OTP from '../models/OTP.js';
+
 import generateToken from '../utils/generateToken.js';
-import { uploadImageToCloudinary } from '../config/cloudinary.js';
 import mailSender from '../utils/mailSender.js';
+
+import { uploadImageToCloudinary } from '../config/cloudinary.js';
 import emailTemplate from '../mail/templates/emailVerificationTemplate.js';
+
+// OTP validity duration
+const OTP_EXPIRY_MINUTES = 5;
+
+// OTP resend cooldown
+const OTP_RESEND_COOLDOWN_SECONDS = 60;
+
+// Generate a secure 6-digit OTP
+const generateOTP = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Normalize email consistently
+const normalizeEmail = (email) => {
+  if (!email || typeof email !== 'string') {
+    throw new Error('Valid email address is required');
+  }
+
+  return email.trim().toLowerCase();
+};
+
+// Check whether OTP is expired
+const isOTPExpired = (createdAt) => {
+  const expiryTime =
+    new Date(createdAt).getTime() + OTP_EXPIRY_MINUTES * 60 * 1000;
+
+  return Date.now() > expiryTime;
+};
+
+// Get latest OTP for an email
+const getLatestOTP = async (email) => {
+  return OTP.findOne({ email }).sort({ createdAt: -1 });
+};
 
 export const authService = {
   /**
-   * Generate and store OTP code for user email verification
+   * Send OTP for email verification
    */
   sendOTP: async (email) => {
-    const cleanEmail = email.trim().toLowerCase();
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const cleanEmail = normalizeEmail(email);
 
-    // 1. Save OTP to DB instantly
+    // Check resend cooldown
+    const latestOTP = await getLatestOTP(cleanEmail);
+
+    if (latestOTP) {
+      const secondsSinceLastOTP =
+        (Date.now() - new Date(latestOTP.createdAt).getTime()) / 1000;
+
+      if (secondsSinceLastOTP < OTP_RESEND_COOLDOWN_SECONDS) {
+        const remainingSeconds = Math.ceil(
+          OTP_RESEND_COOLDOWN_SECONDS - secondsSinceLastOTP
+        );
+
+        throw new Error(
+          `Please wait ${remainingSeconds} seconds before requesting a new OTP`
+        );
+      }
+    }
+
+    const generatedOtp = generateOTP();
+
+    /*
+     * Important:
+     * Do NOT save OTP before sending email.
+     * If email fails, OTP should not become valid in DB.
+     */
+
+    await mailSender(
+      cleanEmail,
+      'Verification OTP - ExpensePilot',
+      emailTemplate(generatedOtp)
+    );
+
+    // Email successfully sent, now save OTP
     await OTP.create({
       email: cleanEmail,
       otp: generatedOtp,
     });
 
-    console.log(`🔑 [OTP SENT] Email: ${cleanEmail} | OTP Code: ${generatedOtp}`);
+    // Remove older OTPs for the same email
+    await OTP.deleteMany({
+      email: cleanEmail,
+      otp: { $ne: generatedOtp },
+    });
 
-    // 2. Send email via SMTP (await to verify delivery success)
-    await mailSender(
-      cleanEmail,
-      'Verification Email from ExpensePilot',
-      emailTemplate(generatedOtp)
-    );
+    console.log(`✅ Verification OTP sent to ${cleanEmail}`);
 
-    return { email: cleanEmail };
+    return {
+      email: cleanEmail,
+    };
   },
 
   /**
-   * Verify OTP code against latest database entry
+   * Verify email OTP
    */
   verifyOTP: async (email, otp) => {
-    const cleanEmail = email.trim().toLowerCase();
-    const recentOtp = await OTP.find({ email: cleanEmail })
-      .sort({ createdAt: -1 })
-      .limit(1);
+    const cleanEmail = normalizeEmail(email);
+    const cleanOTP = String(otp).trim();
 
-    if (recentOtp.length === 0 || recentOtp[0].otp !== otp) {
-      throw new Error('Invalid or expired OTP code');
+    if (!/^\d{6}$/.test(cleanOTP)) {
+      throw new Error('OTP must be a valid 6-digit code');
+    }
+
+    const recentOtp = await getLatestOTP(cleanEmail);
+
+    if (!recentOtp) {
+      throw new Error('OTP not found. Please request a new OTP');
+    }
+
+    // Check expiry
+    if (isOTPExpired(recentOtp.createdAt)) {
+      await OTP.deleteMany({ email: cleanEmail });
+
+      throw new Error('OTP has expired. Please request a new OTP');
+    }
+
+    // Check OTP
+    if (recentOtp.otp !== cleanOTP) {
+      throw new Error('Invalid OTP code');
     }
 
     return true;
   },
 
   /**
-   * Register new user account with password hashing & token generation
+   * Register new user
    */
   registerUser: async (payload) => {
-    const { name, email, password, currency, themePreference, otp } = payload;
-    const cleanEmail = email.trim().toLowerCase();
+    const {
+      name,
+      email,
+      password,
+      currency,
+      themePreference,
+      otp,
+    } = payload;
 
-    const userExists = await User.findOne({ email: cleanEmail });
+    if (!name || !email || !password || !otp) {
+      throw new Error(
+        'Name, email, password, and OTP are required'
+      );
+    }
+
+    const cleanEmail = normalizeEmail(email);
+
+    // Check existing user
+    const userExists = await User.findOne({
+      email: cleanEmail,
+    });
+
     if (userExists) {
-      throw new Error('User already registered with this email');
+      throw new Error(
+        'User already registered with this email'
+      );
     }
 
-    if (otp) {
-      const recentOtp = await OTP.find({ email: cleanEmail })
-        .sort({ createdAt: -1 })
-        .limit(1);
+    /*
+     * OTP verification is mandatory for registration.
+     */
+    await authService.verifyOTP(cleanEmail, otp);
 
-      if (recentOtp.length === 0 || recentOtp[0].otp !== otp) {
-        throw new Error('Invalid or expired OTP. Please request a new OTP');
-      }
-    }
-
+    // Create user
     const user = await User.create({
       name: name.trim(),
       email: cleanEmail,
       password,
       currency: currency || 'INR',
       themePreference: themePreference || 'dark',
+    });
+
+    // OTP no longer needed
+    await OTP.deleteMany({
+      email: cleanEmail,
     });
 
     const token = generateToken(user._id);
@@ -95,16 +200,27 @@ export const authService = {
   },
 
   /**
-   * Authenticate user credentials and return bearer JWT token
+   * Login user
    */
   loginUser: async (email, password) => {
-    const cleanEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ email: cleanEmail }).select('+password');
+    const cleanEmail = normalizeEmail(email);
+
+    if (!password) {
+      throw new Error('Password is required');
+    }
+
+    const user = await User.findOne({
+      email: cleanEmail,
+    }).select('+password');
+
     if (!user) {
-      throw new Error('User is not registered. Please sign up first');
+      throw new Error(
+        'User is not registered. Please sign up first'
+      );
     }
 
     const isPasswordMatch = await user.matchPassword(password);
+
     if (!isPasswordMatch) {
       throw new Error('Incorrect password');
     }
@@ -125,102 +241,207 @@ export const authService = {
   },
 
   /**
-   * Initiate password reset by generating an OTP
+   * Send password reset OTP
    */
   forgotPassword: async (email) => {
-    const cleanEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ email: cleanEmail });
+    const cleanEmail = normalizeEmail(email);
+
+    // Check user
+    const user = await User.findOne({
+      email: cleanEmail,
+    });
+
     if (!user) {
-      throw new Error('No account registered with this email address');
+      throw new Error(
+        'No account registered with this email address'
+      );
     }
 
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Check resend cooldown
+    const latestOTP = await getLatestOTP(cleanEmail);
 
-    // 1. Save OTP to DB first
-    await OTP.create({ email: cleanEmail, otp: generatedOtp });
+    if (latestOTP) {
+      const secondsSinceLastOTP =
+        (Date.now() - new Date(latestOTP.createdAt).getTime()) / 1000;
 
-    console.log(`🔑 [RESET OTP SENT] Email: ${cleanEmail} | OTP Code: ${generatedOtp}`);
+      if (secondsSinceLastOTP < OTP_RESEND_COOLDOWN_SECONDS) {
+        const remainingSeconds = Math.ceil(
+          OTP_RESEND_COOLDOWN_SECONDS - secondsSinceLastOTP
+        );
 
-    // 2. Send email via SMTP (await to verify delivery success)
+        throw new Error(
+          `Please wait ${remainingSeconds} seconds before requesting a new OTP`
+        );
+      }
+    }
+
+    const generatedOtp = generateOTP();
+
+    // Send email first
     await mailSender(
       cleanEmail,
-      'Password Reset OTP from ExpensePilot',
+      'Password Reset OTP - ExpensePilot',
       emailTemplate(generatedOtp)
     );
 
-    return { email: cleanEmail };
+    // Save only after successful email request
+    await OTP.create({
+      email: cleanEmail,
+      otp: generatedOtp,
+    });
+
+    // Delete older OTPs
+    await OTP.deleteMany({
+      email: cleanEmail,
+      otp: { $ne: generatedOtp },
+    });
+
+    console.log(`✅ Password reset OTP sent to ${cleanEmail}`);
+
+    return {
+      email: cleanEmail,
+    };
   },
 
   /**
-   * Verify OTP and update user password
+   * Verify reset OTP and update password
    */
   resetPassword: async (email, otp, newPassword) => {
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = normalizeEmail(email);
 
-    const recentOtp = await OTP.find({ email: cleanEmail })
-      .sort({ createdAt: -1 })
-      .limit(1);
-
-    if (recentOtp.length === 0 || recentOtp[0].otp !== otp) {
-      throw new Error('Invalid or expired OTP');
+    if (!otp || !newPassword) {
+      throw new Error(
+        'OTP and new password are required'
+      );
     }
 
-    const user = await User.findOne({ email: cleanEmail });
+    if (newPassword.length < 6) {
+      throw new Error(
+        'Password must be at least 6 characters long'
+      );
+    }
+
+    // Verify OTP
+    await authService.verifyOTP(cleanEmail, otp);
+
+    // Find user
+    const user = await User.findOne({
+      email: cleanEmail,
+    });
+
     if (!user) {
       throw new Error('User account not found');
     }
 
+    // Update password
     user.password = newPassword;
+
     await user.save();
+
+    // OTP can no longer be reused
+    await OTP.deleteMany({
+      email: cleanEmail,
+    });
 
     return true;
   },
 
   /**
-   * Get user profile details
+   * Get authenticated user profile
    */
   getUserProfile: async (userId) => {
-    return await User.findById(userId);
+    return User.findById(userId);
   },
 
   /**
-   * Update user profile settings & optional avatar upload
+   * Update user profile
    */
   updateUserProfile: async (userId, payload, file) => {
     const user = await User.findById(userId);
+
     if (!user) {
-      if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      if (file && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+
       return null;
     }
 
-    if (payload.name) user.name = payload.name;
-    if (payload.email) user.email = payload.email.toLowerCase();
-    if (payload.currency) user.currency = payload.currency;
-    if (payload.timezone) user.timezone = payload.timezone;
-    if (payload.language) user.language = payload.language;
-    if (payload.themePreference) user.themePreference = payload.themePreference;
+    // Update name
+    if (payload.name) {
+      user.name = payload.name.trim();
+    }
 
+    // Update email
+    if (payload.email) {
+      user.email = normalizeEmail(payload.email);
+    }
+
+    // Update preferences
+    if (payload.currency) {
+      user.currency = payload.currency;
+    }
+
+    if (payload.timezone) {
+      user.timezone = payload.timezone;
+    }
+
+    if (payload.language) {
+      user.language = payload.language;
+    }
+
+    if (payload.themePreference) {
+      user.themePreference = payload.themePreference;
+    }
+
+    // Handle avatar
     if (file) {
-      if (process.env.CLOUD_NAME && process.env.API_KEY && process.env.API_SECRET) {
+      if (
+        process.env.CLOUD_NAME &&
+        process.env.API_KEY &&
+        process.env.API_SECRET
+      ) {
         try {
-          user.avatar = await uploadImageToCloudinary(file, 'Expense tracker');
-          if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+          user.avatar = await uploadImageToCloudinary(
+            file,
+            'Expense tracker'
+          );
+
+          if (file.path && fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
         } catch (cloudErr) {
-          console.warn('Cloudinary upload failed, falling back to local static URL:', cloudErr.message);
-          user.avatar = `/uploads/${path.basename(file.path)}`;
+          console.warn(
+            'Cloudinary upload failed:',
+            cloudErr.message
+          );
+
+          user.avatar = `/uploads/${path.basename(
+            file.path
+          )}`;
         }
       } else {
-        user.avatar = `/uploads/${path.basename(file.path)}`;
+        user.avatar = `/uploads/${path.basename(
+          file.path
+        )}`;
       }
     } else if (payload.avatar) {
       user.avatar = payload.avatar;
     }
 
+    // Update password
     if (payload.password) {
+      if (payload.password.length < 6) {
+        throw new Error(
+          'Password must be at least 6 characters long'
+        );
+      }
+
       user.password = payload.password;
     }
 
     const updatedUser = await user.save();
+
     const token = generateToken(updatedUser._id);
 
     return {

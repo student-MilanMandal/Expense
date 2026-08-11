@@ -25,7 +25,7 @@ export const sendOTP = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: error.message || 'Failed to send OTP code via email. Please check server SMTP configuration.',
-    });
+    }); 
   }
 };
 
