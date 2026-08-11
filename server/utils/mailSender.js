@@ -1,67 +1,30 @@
 import nodemailer from 'nodemailer';
+import dns from 'dns';
+
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (e) {
+  // Ignore
+}
 
 /**
- * Multi-tier robust Email Sender:
- * 1. Resend HTTP API (Port 443 HTTPS - Primary)
- * 2. Gmail SMTP Port 587 STARTTLS (Secondary)
- * 3. Gmail SMTP Port 465 SSL (Tertiary)
- * 4. Local Dev Console Fallback (Ensures local testing never gets blocked by network timeouts)
+ * Fast & Direct Email Sender
+ * 1. Gmail SMTP (Delivers real OTP emails to any inbox instantly)
+ * 2. Resend API (Fallback / Production API)
  */
 const mailSender = async (email, title, body) => {
-  const resendApiKey = process.env.RESEND_API_KEY?.trim();
   const mailUser = process.env.MAIL_USER?.trim().replace(/["']/g, '');
   const mailPass = process.env.MAIL_PASS?.trim().replace(/["']/g, '');
-  const isDev = process.env.NODE_ENV !== 'production';
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
 
-  // Tier 1: Try Resend HTTP API (HTTPS Port 443)
-  if (resendApiKey) {
-    try {
-      const fromAddress = process.env.SENDER_EMAIL?.trim() || 'onboarding@resend.dev';
-      const formattedFrom = fromAddress.includes('<') ? fromAddress : `ExpensePilot <${fromAddress}>`;
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${resendApiKey}`,
-        },
-        body: JSON.stringify({
-          from: formattedFrom,
-          to: [email],
-          subject: title,
-          html: body,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      const data = await response.json();
-      if (response.ok) {
-        console.log('✅ Email sent via Resend API:', data.id);
-        return data;
-      }
-
-      console.warn('⚠️ Resend API limitation/error:', data.message || JSON.stringify(data));
-    } catch (resendErr) {
-      console.warn('⚠️ Resend API request failed:', resendErr.message);
-    }
-  }
-
-  // Tier 2: Try Gmail SMTP Port 587 (STARTTLS)
+  // 1. Primary Method: Gmail SMTP (Delivers real OTP to any inbox instantly)
   if (mailUser && mailPass) {
     try {
       const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
-        port: 587,
-        secure: false, // STARTTLS
+        port: 465,
+        secure: true,
         family: 4,
-        connectionTimeout: 6000,
-        greetingTimeout: 6000,
-        socketTimeout: 6000,
         auth: {
           user: mailUser,
           pass: mailPass,
@@ -75,53 +38,42 @@ const mailSender = async (email, title, body) => {
         html: body,
       });
 
-      console.log('✅ Email sent via Gmail SMTP Port 587:', info.messageId);
+      console.log('✅ Real OTP Email delivered via Gmail SMTP:', info.messageId);
       return info;
     } catch (smtpErr) {
-      console.warn('⚠️ Gmail SMTP Port 587 failed:', smtpErr.message);
-
-      // Tier 3: Try Gmail SMTP Port 465 (SSL)
-      try {
-        const transporter465 = nodemailer.createTransport({
-          host: 'smtp.gmail.com',
-          port: 465,
-          secure: true, // SSL
-          family: 4,
-          connectionTimeout: 6000,
-          greetingTimeout: 6000,
-          socketTimeout: 6000,
-          auth: {
-            user: mailUser,
-            pass: mailPass,
-          },
-        });
-
-        const info465 = await transporter465.sendMail({
-          from: `"ExpensePilot Smart Expense Tracker" <${mailUser}>`,
-          to: email,
-          subject: title,
-          html: body,
-        });
-
-        console.log('✅ Email sent via Gmail SMTP Port 465:', info465.messageId);
-        return info465;
-      } catch (smtp465Err) {
-        console.warn('⚠️ Gmail SMTP Port 465 failed:', smtp465Err.message);
-      }
+      console.warn('⚠️ Gmail SMTP error, trying Resend API fallback:', smtpErr.message);
     }
   }
 
-  // Tier 4: Development Console Fallback (Prints to terminal log so dev testing is never blocked)
-  if (isDev) {
-    console.log('\n==================================================');
-    console.log('📩 [DEV EMAIL SIMULATOR] OTP Email Generated:');
-    console.log(`TO: ${email}`);
-    console.log(`SUBJECT: ${title}`);
-    console.log('==================================================\n');
-    return { success: true, devMode: true };
+  // 2. Secondary Method: Resend HTTP API
+  if (resendApiKey) {
+    const fromAddress = process.env.SENDER_EMAIL?.trim() || 'onboarding@resend.dev';
+    const formattedFrom = fromAddress.includes('<') ? fromAddress : `ExpensePilot <${fromAddress}>`;
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${resendApiKey}`,
+      },
+      body: JSON.stringify({
+        from: formattedFrom,
+        to: [email],
+        subject: title,
+        html: body,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Resend API Error: ${data.message || JSON.stringify(data)}`);
+    }
+
+    console.log('✅ Email sent via Resend API:', data.id);
+    return data;
   }
 
-  throw new Error('Email delivery failed. Please check Resend API Key or Gmail App Password.');
+  throw new Error('Please set MAIL_USER & MAIL_PASS or RESEND_API_KEY in environment variables');
 };
 
 export default mailSender;
