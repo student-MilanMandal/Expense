@@ -27,6 +27,7 @@ import {
 } from 'react-icons/hi2';
 
 import CustomMonthPicker from '../components/common/CustomMonthPicker';
+import Pagination from '../components/common/Pagination';
 import { motion } from 'framer-motion';
 import { useDashboardQuery, DASHBOARD_QUERY_KEY } from '../hooks/queries/useDashboardQueries';
 import { useQueryClient } from '@tanstack/react-query';
@@ -55,6 +56,8 @@ const Dashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [selectedTxn, setSelectedTxn] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   // Month Picker State (Defaults to Current Active Month e.g., "2026-08")
   const now = new Date();
@@ -118,6 +121,13 @@ const Dashboard = () => {
     const matchesType = typeFilter === 'ALL' || act.type === typeFilter;
     return matchesSearch && matchesType;
   });
+
+  // Pagination for Recent Transactions
+  const totalPages = Math.ceil(filteredActivities.length / itemsPerPage) || 1;
+  const paginatedActivities = filteredActivities.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // Calculate Budget Totals & Warning Status
   const totalBudgetLimit = budgets.reduce((acc, b) => acc + (b.limit || b.amount || 0), 0);
@@ -336,7 +346,10 @@ const Dashboard = () => {
                   type="text"
                   placeholder="Search activity..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-[#070F1E] border border-slate-200/80 dark:border-[#1F4759]/60 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#089790] placeholder:text-slate-400"
                 />
               </div>
@@ -344,7 +357,10 @@ const Dashboard = () => {
               {/* Type Filter Select */}
               <select
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="px-3 py-1.5 bg-slate-50 dark:bg-[#070F1E] border border-slate-200/80 dark:border-[#1F4759]/60 rounded-xl text-xs font-bold text-slate-700 dark:text-[#97CADB] focus:outline-hidden cursor-pointer"
               >
                 <option value="ALL">All Types</option>
@@ -360,77 +376,88 @@ const Dashboard = () => {
               No matching activity recorded yet.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-[#1F4759]/40 text-[11px] font-bold text-slate-400 dark:text-slate-400">
-                    <th className="py-3 px-3">Name</th>
-                    <th className="py-3 px-3">Category</th>
-                    <th className="py-3 px-3">Payment Method</th>
-                    <th className="py-3 px-3">Date</th>
-                    <th className="py-3 px-3 text-right">Amount</th>
-                    <th className="py-3 px-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-[#1F4759]/30 text-xs font-semibold">
-                  {filteredActivities.map((act, idx) => {
-                    const isIncome = act.type === 'INCOME';
-                    return (
-                      <tr key={act.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-[#1F4759]/20 transition-colors">
-                        <td className="py-3 px-3">
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black flex-shrink-0 ${
-                              isIncome ? 'bg-[#089790]/15 text-[#089790]' : 'bg-[#E25B45]/15 text-[#E25B45]'
-                            }`}>
-                              {act.title?.charAt(0) || 'T'}
+            <div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-[#1F4759]/40 text-[11px] font-bold text-slate-400 dark:text-slate-400">
+                      <th className="py-3 px-3">Name</th>
+                      <th className="py-3 px-3">Category</th>
+                      <th className="py-3 px-3">Payment Method</th>
+                      <th className="py-3 px-3">Date</th>
+                      <th className="py-3 px-3 text-right">Amount</th>
+                      <th className="py-3 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-[#1F4759]/30 text-xs font-semibold">
+                    {paginatedActivities.map((act, idx) => {
+                      const isIncome = act.type === 'INCOME';
+                      return (
+                        <tr key={act.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-[#1F4759]/20 transition-colors">
+                          <td className="py-3 px-3">
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black flex-shrink-0 ${
+                                isIncome ? 'bg-[#089790]/15 text-[#089790]' : 'bg-[#E25B45]/15 text-[#E25B45]'
+                              }`}>
+                                {act.title?.charAt(0) || 'T'}
+                              </div>
+                              <span className="font-extrabold text-slate-900 dark:text-white truncate max-w-[140px]">
+                                {act.title}
+                              </span>
                             </div>
-                            <span className="font-extrabold text-slate-900 dark:text-white truncate max-w-[140px]">
-                              {act.title}
+                          </td>
+
+                          <td className="py-3 px-3">
+                            <span className="inline-flex px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                              {act.category || 'General'}
                             </span>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="py-3 px-3">
-                          <span className="inline-flex px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                            {act.category || 'General'}
-                          </span>
-                        </td>
+                          <td className="py-3 px-3 text-slate-500 dark:text-slate-400 font-medium">
+                            {act.paymentMethod || 'UPI / Cash'}
+                          </td>
 
-                        <td className="py-3 px-3 text-slate-500 dark:text-slate-400 font-medium">
-                          {act.paymentMethod || 'UPI / Cash'}
-                        </td>
+                          <td className="py-3 px-3 text-slate-400 dark:text-slate-500">
+                            {formatDateDisplay(act.date)}
+                          </td>
 
-                        <td className="py-3 px-3 text-slate-400 dark:text-slate-500">
-                          {formatDateDisplay(act.date)}
-                        </td>
+                          <td className={`py-3 px-3 text-right font-black ${isIncome ? 'text-[#089790] dark:text-[#86E3CE]' : 'text-[#E25B45] dark:text-[#FA897B]'}`}>
+                            {isIncome ? '+' : '-'}₹{act.amount.toLocaleString('en-IN')}
+                          </td>
 
-                        <td className={`py-3 px-3 text-right font-black ${isIncome ? 'text-[#089790] dark:text-[#86E3CE]' : 'text-[#E25B45] dark:text-[#FA897B]'}`}>
-                          {isIncome ? '+' : '-'}₹{act.amount.toLocaleString('en-IN')}
-                        </td>
+                          <td className="py-3 px-3 text-right">
+                            <div className="flex items-center justify-end space-x-1">
+                              <button
+                                onClick={() => setSelectedTxn(act)}
+                                title="View Details"
+                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer transition-colors"
+                              >
+                                <HiEye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteActivity(act.id, act.type)}
+                                title="Delete Record"
+                                className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-400 hover:text-rose-600 cursor-pointer transition-colors"
+                              >
+                                <HiTrash className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-                        <td className="py-3 px-3 text-right">
-                          <div className="flex items-center justify-end space-x-1">
-                            <button
-                              onClick={() => setSelectedTxn(act)}
-                              title="View Details"
-                              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer transition-colors"
-                            >
-                              <HiEye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteActivity(act.id, act.type)}
-                              title="Delete Record"
-                              className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-400 hover:text-rose-600 cursor-pointer transition-colors"
-                            >
-                              <HiTrash className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {/* Numbered Pagination */}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={filteredActivities.length}
+                itemsPerPage={itemsPerPage}
+              />
             </div>
           )}
         </div>

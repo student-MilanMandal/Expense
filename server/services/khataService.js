@@ -1,8 +1,6 @@
 import fs from 'fs';
 import KhataCustomer from '../models/KhataCustomer.js';
 import KhataTransaction from '../models/KhataTransaction.js';
-import mailSender from '../utils/mailSender.js';
-import { khataTxnTemplate, customerAddedTemplate } from '../mail/templates/emailTemplates.js';
 import { uploadImageToCloudinary } from '../config/cloudinary.js';
 import { parseInputDate } from '../utils/dateUtils.js';
 
@@ -28,18 +26,7 @@ export const khataService = {
       netBalance: 0,
     });
 
-    if (userObj?.email) {
-      const subject = `👤 New Customer Added to Khata Book: ${name}`;
-      const htmlBody = customerAddedTemplate({
-        userName: userObj.name,
-        customerName: name,
-        mobile,
-        address: address || '',
-      });
-      mailSender(userObj.email, subject, htmlBody).catch((err) =>
-        console.error('Customer email send error:', err.message)
-      );
-    }
+    // Routine khata customer creation email disabled to preserve free email quotas
 
     return customer;
   },
@@ -129,20 +116,7 @@ export const khataService = {
 
     await customer.save();
 
-    if (userObj?.email) {
-      const subject = `📖 Khata Ledger Entry for ${customer.name}: ₹${numAmount.toLocaleString('en-IN')}`;
-      const htmlBody = khataTxnTemplate({
-        userName: userObj.name,
-        customerName: customer.name,
-        type: type === 'CREDIT_GIVEN' ? 'GAVE' : 'GOT',
-        amount: numAmount,
-        notes: txnNotes,
-        date: date ? new Date(date) : new Date(),
-      });
-      mailSender(userObj.email, subject, htmlBody).catch((err) =>
-        console.error('Khata email send error:', err.message)
-      );
-    }
+    // Routine khata transaction email disabled to preserve free email quotas
 
     return { transaction, updatedCustomer: customer };
   },

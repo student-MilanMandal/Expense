@@ -1,6 +1,4 @@
 import Loan from '../models/Loan.js';
-import mailSender from '../utils/mailSender.js';
-import { loanCreatedTemplate, emiPaidTemplate } from '../mail/templates/emailTemplates.js';
 import { parseInputDate } from '../utils/dateUtils.js';
 
 const computeLoanMetrics = (loan) => {
@@ -38,22 +36,7 @@ export const loanService = {
       paymentHistory: [],
     });
 
-    if (userObj?.email) {
-      const subject = `🏦 New Loan Entry (${personName}): ₹${Number(loanAmount).toLocaleString('en-IN')}`;
-      const htmlBody = loanCreatedTemplate({
-        userName: userObj.name,
-        personName,
-        type,
-        amount: loanAmount,
-        emiAmount: loan.emiAmount,
-        interestRate: loan.interestRate,
-        dueDate: loan.dueDate,
-        notes: loan.notes,
-      });
-      mailSender(userObj.email, subject, htmlBody).catch((err) =>
-        console.error('Loan create email error:', err.message)
-      );
-    }
+    // Routine loan creation email disabled to preserve free email quotas
 
     return computeLoanMetrics(loan);
   },
@@ -98,21 +81,7 @@ export const loanService = {
 
     const computed = computeLoanMetrics(loan);
 
-    if (userObj?.email) {
-      const subject = `💸 EMI / Loan Payment Recorded for ${loan.personName}: ₹${payAmount.toLocaleString('en-IN')}`;
-      const htmlBody = emiPaidTemplate({
-        userName: userObj.name,
-        personName: loan.personName,
-        type: loan.type,
-        payAmount,
-        remainingBalance: computed.remainingBalance,
-        notes,
-        date: new Date(),
-      });
-      mailSender(userObj.email, subject, htmlBody).catch((err) =>
-        console.error('EMI payment email error:', err.message)
-      );
-    }
+    // Routine EMI payment email disabled to preserve free email quotas
 
     return computed;
   },

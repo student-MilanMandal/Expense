@@ -1,8 +1,6 @@
 import CashBook from '../models/CashBook.js';
 import Income from '../models/Income.js';
 import Expense from '../models/Expense.js';
-import mailSender from '../utils/mailSender.js';
-import { cashEntryTemplate } from '../mail/templates/emailTemplates.js';
 import { parseInputDate } from '../utils/dateUtils.js';
 
 const getStartOfDay = (dateString) => {
@@ -81,8 +79,8 @@ export const cashbookService = {
         user: userId,
         date: entryDate,
         openingBalance,
-        totalCashIn: 0,
-        totalCashOut: 0,
+        cashIn: 0,
+        cashOut: 0,
         closingBalance: openingBalance,
         entries: [],
       });
@@ -96,30 +94,19 @@ export const cashbookService = {
     });
 
     if (type === 'IN') {
-      cashBook.totalCashIn += numAmount;
+      cashBook.cashIn = (cashBook.cashIn || 0) + numAmount;
     } else if (type === 'OUT') {
-      cashBook.totalCashOut += numAmount;
+      cashBook.cashOut = (cashBook.cashOut || 0) + numAmount;
     }
 
-    cashBook.closingBalance = cashBook.openingBalance + cashBook.totalCashIn - cashBook.totalCashOut;
+    cashBook.closingBalance = (cashBook.openingBalance || 0) + (cashBook.cashIn || 0) - (cashBook.cashOut || 0);
     await cashBook.save();
 
-    if (userObj?.email) {
-      const subject = `💵 Cash ${type === 'IN' ? 'In (Received)' : 'Out (Paid)'}: ₹${numAmount.toLocaleString('en-IN')}`;
-      const htmlBody = cashEntryTemplate({
-        userName: userObj.name,
-        type: type === 'IN' ? 'CASH IN' : 'CASH OUT',
-        amount: numAmount,
-        notes,
-        closingBalance: cashBook.closingBalance,
-        date: new Date(),
-      });
-      mailSender(userObj.email, subject, htmlBody).catch((err) =>
-        console.error('Cash email error:', err)
-      );
-    }
+    const resObj = cashBook.toObject ? cashBook.toObject() : { ...cashBook };
+    resObj.totalCashIn = cashBook.cashIn;
+    resObj.totalCashOut = cashBook.cashOut;
 
-    return cashBook;
+    return resObj;
   },
 
   /**
@@ -135,6 +122,8 @@ export const cashbookService = {
       return {
         date: targetDate,
         openingBalance,
+        cashIn: 0,
+        cashOut: 0,
         totalCashIn: 0,
         totalCashOut: 0,
         closingBalance: openingBalance,
@@ -142,7 +131,10 @@ export const cashbookService = {
       };
     }
 
-    return cashBook;
+    const resObj = cashBook.toObject ? cashBook.toObject() : { ...cashBook };
+    resObj.totalCashIn = cashBook.cashIn || 0;
+    resObj.totalCashOut = cashBook.cashOut || 0;
+    return resObj;
   },
 
   /**
@@ -159,18 +151,22 @@ export const cashbookService = {
         user: userId,
         date: targetDate,
         openingBalance: numOpening,
-        totalCashIn: 0,
-        totalCashOut: 0,
+        cashIn: 0,
+        cashOut: 0,
         closingBalance: numOpening,
         entries: [],
       });
     } else {
       cashBook.openingBalance = numOpening;
-      cashBook.closingBalance = cashBook.openingBalance + cashBook.totalCashIn - cashBook.totalCashOut;
+      cashBook.closingBalance = cashBook.openingBalance + (cashBook.cashIn || 0) - (cashBook.cashOut || 0);
     }
 
     await cashBook.save();
-    return cashBook;
+
+    const resObj = cashBook.toObject ? cashBook.toObject() : { ...cashBook };
+    resObj.totalCashIn = cashBook.cashIn || 0;
+    resObj.totalCashOut = cashBook.cashOut || 0;
+    return resObj;
   },
 
   /**
@@ -179,7 +175,12 @@ export const cashbookService = {
   getCashBookHistory: async (userId, queryParams) => {
     const limit = Number(queryParams.limit) || 30;
     const history = await CashBook.find({ user: userId }).sort({ date: -1 }).limit(limit);
-    return history;
+    return history.map((doc) => {
+      const obj = doc.toObject ? doc.toObject() : { ...doc };
+      obj.totalCashIn = doc.cashIn || 0;
+      obj.totalCashOut = doc.cashOut || 0;
+      return obj;
+    });
   },
 
   /**
@@ -195,15 +196,18 @@ export const cashbookService = {
     if (!entry) return null;
 
     if (entry.type === 'IN') {
-      cashBook.totalCashIn -= entry.amount;
+      cashBook.cashIn = Math.max(0, (cashBook.cashIn || 0) - entry.amount);
     } else if (entry.type === 'OUT') {
-      cashBook.totalCashOut -= entry.amount;
+      cashBook.cashOut = Math.max(0, (cashBook.cashOut || 0) - entry.amount);
     }
 
     entry.deleteOne();
-    cashBook.closingBalance = cashBook.openingBalance + cashBook.totalCashIn - cashBook.totalCashOut;
+    cashBook.closingBalance = (cashBook.openingBalance || 0) + (cashBook.cashIn || 0) - (cashBook.cashOut || 0);
     await cashBook.save();
 
-    return cashBook;
+    const resObj = cashBook.toObject ? cashBook.toObject() : { ...cashBook };
+    resObj.totalCashIn = cashBook.cashIn || 0;
+    resObj.totalCashOut = cashBook.cashOut || 0;
+    return resObj;
   },
 };

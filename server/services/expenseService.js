@@ -141,9 +141,11 @@ const sendExpenseSummaryMail = async (userId, expenseRecord, userObj) => {
       isIncomeCrossed,
     });
 
-    mailSender(userObj.email, subject, htmlBody).catch((err) =>
-      console.error('Expense summary email error:', err)
-    );
+    if (isIncomeCrossed) {
+      mailSender(userObj.email, subject, htmlBody).catch((err) =>
+        console.error('Expense summary email error:', err)
+      );
+    }
   } catch (err) {
     console.error('Error in sendExpenseSummaryMail:', err);
   }

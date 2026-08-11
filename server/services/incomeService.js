@@ -1,7 +1,5 @@
 import fs from 'fs';
 import Income from '../models/Income.js';
-import mailSender from '../utils/mailSender.js';
-import { incomeAddedTemplate } from '../mail/templates/emailTemplates.js';
 import { uploadImageToCloudinary } from '../config/cloudinary.js';
 import { parseInputDate } from '../utils/dateUtils.js';
 
@@ -31,20 +29,7 @@ export const incomeService = {
       attachment,
     });
 
-    if (userEmail) {
-      const subject = `💰 New Income Credit Logged: +₹${Number(amount).toLocaleString('en-IN')}`;
-      const htmlBody = incomeAddedTemplate({
-        userName: userName || 'User',
-        amount,
-        source,
-        category: category || 'Others',
-        date: expDate,
-        paymentMethod: paymentMethod || 'Bank Transfer',
-      });
-      mailSender(userEmail, subject, htmlBody).catch((err) =>
-        console.error('Income email send error:', err.message)
-      );
-    }
+    // Routine income emails disabled to preserve free email quotas (OTP and critical alerts only)
 
     return income;
   },
