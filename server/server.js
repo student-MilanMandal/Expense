@@ -52,6 +52,15 @@ app.get('/', (req, res) => {
   });
 });
 
+app.get('/api', (req, res) => {
+  res.json({
+    success: true,
+    message: 'ExpensePilot API Gateway is Active & Online 🚀',
+    health: '/api/health',
+    version: '1.0.0',
+  });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
