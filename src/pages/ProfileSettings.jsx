@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import Modal from '../components/common/Modal';
 import { HiCamera, HiSun, HiMoon, HiCheck, HiScissors } from 'react-icons/hi2';
+import { getAvatarSrc } from '../utils/avatarUtils';
 
 const ProfileSettings = () => {
   const { user, updateProfile } = useAuth();
@@ -14,7 +15,14 @@ const ProfileSettings = () => {
 
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [croppedBase64, setCroppedBase64] = useState('');
   const [previewAvatar, setPreviewAvatar] = useState(user?.avatar || '');
+
+  useEffect(() => {
+    if (user?.avatar) {
+      setPreviewAvatar(user.avatar);
+    }
+  }, [user?.avatar]);
 
   // Modern Cropper Modal States
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
@@ -144,14 +152,15 @@ const ProfileSettings = () => {
     });
   };
 
-  const handleApplyCrop = () => {
-    if (!imageObj || !exportCanvasRef.current) return;
+  const handleApplyCrop = async () => {
+    if (!imageObj) return;
 
-    const exportCanvas = exportCanvasRef.current;
-    const ctx = exportCanvas.getContext('2d');
+    // Create an in-memory canvas for 100% reliable pixel extraction
+    const exportCanvas = document.createElement('canvas');
     const exportSize = 400; // 400x400 high-res output
     exportCanvas.width = exportSize;
     exportCanvas.height = exportSize;
+    const ctx = exportCanvas.getContext('2d');
 
     const scaleFactor = exportSize / 260; // Scale ratio from viewport to export canvas
 
@@ -174,49 +183,88 @@ const ProfileSettings = () => {
     const finalX = defaultX + pan.x * scaleFactor;
     const finalY = defaultY + pan.y * scaleFactor;
 
+    // Clear and draw real photo on canvas
     ctx.clearRect(0, 0, exportSize, exportSize);
     ctx.drawImage(imageObj, finalX, finalY, drawW, drawH);
 
-    exportCanvas.toBlob((blob) => {
-      if (blob) {
-        const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-        setSelectedFile(file);
-        setPreviewAvatar(URL.createObjectURL(blob));
-        setIsCropModalOpen(false);
-        toast.info('Photo cropped & aligned successfully!');
+    // Extract real image data URL (high-quality JPEG)
+    const base64Data = exportCanvas.toDataURL('image/jpeg', 0.90);
+    setCroppedBase64(base64Data);
+    setPreviewAvatar(base64Data);
+    setIsCropModalOpen(false);
+
+    // Auto-save cropped photo immediately to backend MongoDB & AuthContext
+    try {
+      toast.info('Saving photo to profile...');
+      const res = await updateProfile({
+        name: user?.name || '',
+        currency: user?.currency || 'INR',
+        timezone: user?.timezone || 'Asia/Kolkata',
+        language: user?.language || 'en',
+        themePreference: user?.themePreference || theme,
+        avatar: base64Data,
+      });
+
+      if (res?.data?.avatar) {
+        setPreviewAvatar(res.data.avatar);
       }
-    }, 'image/jpeg', 0.95);
+      toast.success('Profile photo saved permanently in database & Navbar!');
+
+      addNotification({
+        title: 'Profile Photo Updated',
+        message: 'Your new profile avatar photo was uploaded and saved permanently.',
+        type: 'SYSTEM',
+      });
+    } catch (err) {
+      console.error('Auto-save photo error:', err);
+      toast.error('Could not auto-save. Please click "Save Profile & Preferences" at the bottom.');
+    }
   };
 
   const onSubmit = async (data) => {
     setSubmitting(true);
     try {
-      const formData = new FormData();
-      formData.append('name', data.name);
-      formData.append('currency', data.currency);
-      formData.append('timezone', data.timezone);
-      formData.append('language', data.language);
-      formData.append('themePreference', theme);
+      const payload = {
+        name: data.name,
+        currency: data.currency,
+        timezone: data.timezone,
+        language: data.language,
+        themePreference: theme,
+      };
 
       if (data.password) {
-        formData.append('password', data.password);
+        payload.password = data.password;
       }
 
-      if (selectedFile) {
+      if (croppedBase64) {
+        payload.avatar = croppedBase64;
+      } else if (previewAvatar && previewAvatar.startsWith('data:image/')) {
+        payload.avatar = previewAvatar;
+      }
+
+      let submitData;
+      if (selectedFile && !croppedBase64) {
+        const formData = new FormData();
+        Object.keys(payload).forEach((k) => formData.append(k, payload[k]));
         formData.append('avatar', selectedFile);
+        submitData = formData;
+      } else {
+        submitData = payload;
       }
 
-      const res = await updateProfile(formData);
+      const res = await updateProfile(submitData);
       if (res?.data?.avatar) {
         setPreviewAvatar(res.data.avatar);
       }
+      setSelectedFile(null);
+      setCroppedBase64('');
 
       toast.success('Profile and Photo updated successfully!');
       
       // Trigger Live Notification
       addNotification({
         title: 'Profile Updated',
-        message: selectedFile
+        message: selectedFile || croppedBase64
           ? 'Your new profile avatar photo was uploaded & saved successfully.'
           : 'Your account profile settings were saved successfully.',
         type: 'SYSTEM',
@@ -245,7 +293,7 @@ const ProfileSettings = () => {
           <div className="relative">
             {previewAvatar ? (
               <img
-                src={previewAvatar}
+                src={getAvatarSrc(previewAvatar)}
                 alt={user?.name || 'User Avatar'}
                 onError={() => setPreviewAvatar('')}
                 className="w-24 h-24 rounded-2xl object-cover object-center border-2 border-indigo-500 shadow-md"

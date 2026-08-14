@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDateDisplay } from '../utils/dateUtils';
 import axiosClient from '../api/axiosClient';
@@ -28,28 +28,8 @@ import {
 
 import CustomMonthPicker from '../components/common/CustomMonthPicker';
 import Pagination from '../components/common/Pagination';
-import { motion } from 'framer-motion';
 import { useDashboardQuery, DASHBOARD_QUERY_KEY } from '../hooks/queries/useDashboardQueries';
 import { useQueryClient } from '@tanstack/react-query';
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.08,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1.0] },
-  },
-};
 
 const Dashboard = () => {
   const queryClient = useQueryClient();
@@ -78,8 +58,50 @@ const Dashboard = () => {
     month: selectedMonthNum,
   });
   const dashboardData = resData?.data || null;
+  const cards = dashboardData?.cards || {};
+  const widgets = dashboardData?.widgets || {};
+  const charts = dashboardData?.charts || {};
+  const recentActivities = dashboardData?.recentActivities || [];
+  const budgets = dashboardData?.budgets || [];
 
-  const handleDeleteActivity = async (id, type) => {
+  // Filtered transactions (Search + Type Filter) - Memoized for 0 re-render overhead
+  const filteredActivities = useMemo(() => {
+    return recentActivities.filter((act) => {
+      const matchesSearch =
+        act.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        act.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        act.paymentMethod?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesType = typeFilter === 'ALL' || act.type === typeFilter;
+      return matchesSearch && matchesType;
+    });
+  }, [recentActivities, searchTerm, typeFilter]);
+
+  // Pagination for Recent Transactions
+  const totalPages = useMemo(() => Math.ceil(filteredActivities.length / itemsPerPage) || 1, [filteredActivities.length]);
+  const paginatedActivities = useMemo(() => {
+    return filteredActivities.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    );
+  }, [filteredActivities, currentPage]);
+
+  // Calculate Budget Totals & Warning Status
+  const { totalBudgetLimit, totalBudgetSpent, remainingBudget, budgetUsagePct, isBudgetExceeded } = useMemo(() => {
+    const limit = budgets.reduce((acc, b) => acc + (b.limit || b.amount || 0), 0);
+    const spent = budgets.reduce((acc, b) => acc + (b.spent || 0), 0);
+    const remaining = Math.max(0, limit - spent);
+    const usage = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+    return {
+      totalBudgetLimit: limit,
+      totalBudgetSpent: spent,
+      remainingBudget: remaining,
+      budgetUsagePct: usage,
+      isBudgetExceeded: usage >= 90,
+    };
+  }, [budgets]);
+
+  const handleDeleteActivity = useCallback(async (id, type) => {
     if (!window.confirm('Are you sure you want to delete this record?')) return;
     try {
       if (type === 'INCOME') {
@@ -93,7 +115,7 @@ const Dashboard = () => {
     } catch (error) {
       toast.error('Failed to delete record');
     }
-  };
+  }, [queryClient]);
 
   if (loading) {
     return (
@@ -104,37 +126,6 @@ const Dashboard = () => {
       </div>
     );
   }
-
-  const cards = dashboardData?.cards || {};
-  const widgets = dashboardData?.widgets || {};
-  const charts = dashboardData?.charts || {};
-  const recentActivities = dashboardData?.recentActivities || [];
-  const budgets = dashboardData?.budgets || [];
-
-  // Filtered transactions (Search + Type Filter)
-  const filteredActivities = recentActivities.filter((act) => {
-    const matchesSearch =
-      act.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      act.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      act.paymentMethod?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesType = typeFilter === 'ALL' || act.type === typeFilter;
-    return matchesSearch && matchesType;
-  });
-
-  // Pagination for Recent Transactions
-  const totalPages = Math.ceil(filteredActivities.length / itemsPerPage) || 1;
-  const paginatedActivities = filteredActivities.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // Calculate Budget Totals & Warning Status
-  const totalBudgetLimit = budgets.reduce((acc, b) => acc + (b.limit || b.amount || 0), 0);
-  const totalBudgetSpent = budgets.reduce((acc, b) => acc + (b.spent || 0), 0);
-  const remainingBudget = Math.max(0, totalBudgetLimit - totalBudgetSpent);
-  const budgetUsagePct = totalBudgetLimit > 0 ? Math.round((totalBudgetSpent / totalBudgetLimit) * 100) : 0;
-  const isBudgetExceeded = budgetUsagePct >= 90;
 
   // STRICT REAL BACKEND WIDGET DATA (ZERO HARDCODED MOCK NUMBERS)
   const topCategoryObj = widgets.topCategory || (charts.categorySpending?.length > 0 ? {
@@ -148,14 +139,9 @@ const Dashboard = () => {
   const upcomingBills = widgets.upcomingBills || [];
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-8 animate-in fade-in duration-300 pb-8"
-    >
+    <div className="space-y-8 animate-in fade-in duration-200 pb-8">
       {/* Header & Quick Action Buttons */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
             Personal Expense Dashboard
@@ -188,10 +174,10 @@ const Dashboard = () => {
             <span>Add Expense</span>
           </Link>
         </div>
-      </motion.div>
+      </div>
 
       {/* 8 TOP SUMMARY CARDS (Strict Real Backend Data) */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
           title="Total Income"
           value={cards.totalIncome || 0}
@@ -253,7 +239,7 @@ const Dashboard = () => {
           icon={HiChartBar}
           color="indigo"
         />
-      </motion.div>
+      </div>
 
       {/* NEW DASHBOARD WIDGETS ROW (Strict Real Backend Data - Zero Mock Numbers) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -589,7 +575,7 @@ const Dashboard = () => {
           </div>
         )}
       </Modal>
-    </motion.div>
+    </div>
   );
 };
 

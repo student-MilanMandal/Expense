@@ -31,6 +31,8 @@
 
   html {
     scroll-behavior: smooth;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 
   body {
@@ -39,7 +41,30 @@
     font-family: 'Plus Jakarta Sans', 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     min-height: 100vh;
+    max-width: 100vw;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  #root {
+    max-width: 100vw;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* Standard Typography Hierarchy */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+    letter-spacing: -0.025em;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Tabular Numerics for Currency and Statistics */
+  .tabular-nums, [data-amount] {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
   }
 
   * {

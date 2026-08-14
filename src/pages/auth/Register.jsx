@@ -10,31 +10,36 @@ import {
   HiLockClosed,
   HiEye,
   HiEyeSlash,
-  HiKey,
   HiArrowRight,
-  HiCheckCircle,
 } from 'react-icons/hi2';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerSchema } from '../../features/auth/authSchemas';
 
 const Register = () => {
-  const { register: signup, sendOTP, verifyOTP } = useAuth();
+  const { register: signup /* , sendOTP, verifyOTP */ } = useAuth();
   const navigate = useNavigate();
 
   const [showPassword, setShowPassword] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
-  const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /*
+   * ==========================================
+   * OTP STATES & HANDLERS (COMMENTED OUT)
+   * ==========================================
+   * const [otpSent, setOtpSent] = useState(false);
+   * const [sendingOtp, setSendingOtp] = useState(false);
+   * const [verifyingOtp, setVerifyingOtp] = useState(false);
+   * const [isEmailVerified, setIsEmailVerified] = useState(false);
+   *
+   * const handleSendOTP = async () => { ... };
+   * const handleVerifyOTP = async () => { ... };
+   * const handleEditEmail = () => { ... };
+   */
 
   const {
     register,
     handleSubmit,
-    getValues,
-    setValue,
-    watch,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(registerSchema),
@@ -43,69 +48,6 @@ const Register = () => {
       themePreference: 'dark',
     },
   });
-
-  const otpValue = watch('otp');
-
-  const handleSendOTP = async () => {
-    const rawEmail = getValues('email');
-    const email = rawEmail ? rawEmail.trim().toLowerCase() : '';
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error('Please enter a valid email address first');
-      return;
-    }
-
-    setValue('email', email);
-
-    setSendingOtp(true);
-    try {
-      await sendOTP(email);
-      setOtpSent(true);
-      toast.success('Verification OTP code sent to your email!');
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message ||
-          (error.code === 'ERR_NETWORK' || error.message?.includes('Network')
-            ? 'Cannot connect to backend server. Please ensure Node server is running on port 5000.'
-            : error.message || 'Failed to send OTP code')
-      );
-    } finally {
-      setSendingOtp(false);
-    }
-  };
-
-  const handleVerifyOTP = async (customOtp) => {
-    const rawEmail = getValues('email');
-    const email = rawEmail ? rawEmail.trim().toLowerCase() : '';
-    const otp = typeof customOtp === 'string' ? customOtp : getValues('otp');
-
-    if (!otp || otp.trim().length !== 6) {
-      return;
-    }
-
-    setVerifyingOtp(true);
-    try {
-      await verifyOTP(email, otp.trim());
-      setIsEmailVerified(true);
-      toast.success('Email verified successfully! ✅');
-    } catch (error) {
-      toast.error(error.response?.data?.message || error.message || 'OTP verification failed');
-    } finally {
-      setVerifyingOtp(false);
-    }
-  };
-
-  // Auto-verify OTP when 6 digits are entered
-  React.useEffect(() => {
-    if (otpSent && !isEmailVerified && !verifyingOtp && otpValue && otpValue.trim().length === 6) {
-      handleVerifyOTP(otpValue.trim());
-    }
-  }, [otpValue, otpSent, isEmailVerified, verifyingOtp]);
-
-  const handleEditEmail = () => {
-    setOtpSent(false);
-    setIsEmailVerified(false);
-    setValue('otp', '');
-  };
 
   const onError = (formErrors) => {
     const firstError = Object.values(formErrors)[0]?.message;
@@ -118,24 +60,10 @@ const Register = () => {
     const rawEmail = data.email;
     data.email = rawEmail ? rawEmail.trim().toLowerCase() : '';
 
-    if (!otpSent && !isEmailVerified) {
-      toast.error('Please click "Send OTP" to verify your email first');
-      return;
-    }
-
-    if (!isEmailVerified) {
-      if (!data.otp || data.otp.trim().length !== 6) {
-        toast.error('Please enter and verify your 6-digit OTP code first');
-        return;
-      }
-      try {
-        await verifyOTP(data.email, data.otp.trim());
-        setIsEmailVerified(true);
-      } catch (err) {
-        toast.error(err.response?.data?.message || 'Invalid or expired OTP code');
-        return;
-      }
-    }
+    /*
+     * OTP verification bypassed as requested:
+     * if (!isEmailVerified) { ... }
+     */
 
     setIsSubmitting(true);
     try {
@@ -162,7 +90,7 @@ const Register = () => {
             />
           </div>
           <h2 className="text-2xl font-black tracking-tight">Create Account</h2>
-          <p className="text-xs text-[#97CADB]">Join ExpensePilot with OTP email verification</p>
+          <p className="text-xs text-[#97CADB]">Join ExpensePilot to manage your personal finances</p>
         </div>
 
         {/* Signup Form */}
@@ -182,96 +110,37 @@ const Register = () => {
             {errors.name && <p className="text-xs text-rose-400 mt-1">{errors.name.message}</p>}
           </div>
 
-          {/* Email Address & Send OTP / Change Email Button */}
+          {/* Email Address */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-slate-300">Email Address</label>
-              {isEmailVerified ? (
-                <span className="text-emerald-400 font-bold text-xs inline-flex items-center gap-1">
-                  <HiCheckCircle className="w-4 h-4" /> Email Verified
-                </span>
-              ) : otpSent ? (
-                <button
-                  type="button"
-                  onClick={handleEditEmail}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 underline font-medium"
-                >
-                  Change Email
-                </button>
-              ) : null}
-            </div>
-            <div className="flex space-x-2">
-              <div className="relative flex-1">
-                <HiEnvelope className="w-5 h-5 text-slate-500 absolute left-3.5 top-3" />
-                <input
-                  type="email"
-                  readOnly={otpSent || isEmailVerified}
-                  placeholder="name@example.com"
-                  {...register('email', {
-                    required: 'Email is required',
-                    pattern: {
-                      value: /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-                      message: 'Enter a valid email address',
-                    },
-                  })}
-                  className={`w-full pl-10 pr-4 py-2.5 bg-slate-800/90 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all ${
-                    otpSent || isEmailVerified ? 'bg-slate-900/90 border-slate-700/50 text-slate-300 read-only:cursor-not-allowed' : ''
-                  }`}
-                />
-              </div>
-              {!isEmailVerified && (
-                <button
-                  type="button"
-                  onClick={handleSendOTP}
-                  disabled={sendingOtp}
-                  className="px-3 py-2.5 bg-indigo-600/80 hover:bg-indigo-600 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50 whitespace-nowrap cursor-pointer"
-                >
-                  {sendingOtp ? 'Sending...' : otpSent ? 'Resend OTP' : 'Send OTP'}
-                </button>
-              )}
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Address</label>
+            <div className="relative">
+              <HiEnvelope className="w-5 h-5 text-slate-500 absolute left-3.5 top-3" />
+              <input
+                type="email"
+                placeholder="name@example.com"
+                {...register('email', {
+                  required: 'Email is required',
+                  pattern: {
+                    value: /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+                    message: 'Enter a valid email address',
+                  },
+                })}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-800/90 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
+              />
             </div>
             {errors.email && <p className="text-xs text-rose-400 mt-1">{errors.email.message}</p>}
           </div>
 
-          {/* OTP Code (Required if sent) */}
-          {otpSent && (
-            <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-300">Enter 6-Digit OTP</label>
+          {/* 
+            ==================================================
+            OTP INPUT & VERIFICATION SECTION (COMMENTED OUT)
+            ==================================================
+            {otpSent && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                ...
               </div>
-              <div className="flex space-x-2">
-                <div className="relative flex-1">
-                  <HiKey className="w-5 h-5 text-indigo-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    maxLength={6}
-                    readOnly={isEmailVerified}
-                    placeholder="123456"
-                    {...register('otp', { required: 'OTP code is required' })}
-                    className={`w-full pl-10 pr-4 py-2.5 bg-slate-800/90 border border-indigo-500/80 rounded-xl text-sm text-white placeholder-slate-500 font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all ${
-                      isEmailVerified ? 'bg-slate-900/90 border-emerald-500/60 text-emerald-300 read-only:cursor-not-allowed' : ''
-                    }`}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleVerifyOTP}
-                  disabled={verifyingOtp || isEmailVerified}
-                  className={`px-3 py-2.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
-                    isEmailVerified
-                      ? 'bg-emerald-600/80 text-white cursor-default'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
-                  } disabled:opacity-50`}
-                >
-                  {verifyingOtp ? 'Verifying...' : isEmailVerified ? 'Verified ✓' : 'Verify OTP'}
-                </button>
-              </div>
-              {!isEmailVerified && (
-                <p className="text-[11px] text-slate-400 mt-1">Check your email inbox (and spam folder) for the 6-digit OTP code.</p>
-              )}
-              {errors.otp && <p className="text-xs text-rose-400 mt-1">{errors.otp.message}</p>}
-            </div>
-          )}
+            )}
+          */}
 
           {/* Password */}
           <div>

@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { prefetchRoute } from '../../utils/prefetchHelpers';
 import logoImg from '../../assets/ExpensePailot.jpg';
 import Modal from './Modal';
 import {
@@ -49,29 +51,34 @@ const menuGroups = [
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { logout } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const handleConfirmLogout = () => {
+  const handlePrefetch = useCallback((path) => {
+    prefetchRoute(queryClient, path);
+  }, [queryClient]);
+
+  const handleConfirmLogout = useCallback(() => {
     setShowLogoutModal(false);
     logout();
     navigate('/login');
-  };
+  }, [logout, navigate]);
 
   return (
     <>
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden"
           onClick={onClose}
         />
       )}
 
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 transform bg-white dark:bg-[#070F1E] border-r border-slate-200/80 dark:border-[#1F4759]/50 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 left-0 z-50 h-full w-64 transform bg-white dark:bg-[#070F1E] border-r border-slate-200/80 dark:border-[#1F4759]/50 transition-transform duration-250 ease-in-out lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -84,7 +91,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                 <img
                   src={logoImg}
                   alt="ExpensePilot Logo"
-                  className="w-9 h-9 rounded-xl object-cover shadow-sm border border-slate-200 dark:border-[#1F4759]"
+                  className="w-9 h-9 rounded-xl object-cover shadow-xs border border-slate-200 dark:border-[#1F4759]"
                 />
                 <span className="font-extrabold text-lg tracking-tight text-slate-900 dark:text-white">
                   Expense<span className="text-[#089790] dark:text-[#86E3CE]">Pilot</span>
@@ -93,7 +100,7 @@ const Sidebar = ({ isOpen, onClose }) => {
               <button
                 onClick={onClose}
                 aria-label="Close Mobile Sidebar"
-                className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#0A1325] border border-transparent hover:border-slate-200 dark:hover:border-[#1F4759]/60 transition-all active:scale-90 flex items-center justify-center shrink-0 cursor-pointer"
+                className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#0A1325] border border-transparent hover:border-slate-200 dark:hover:border-[#1F4759]/60 transition-all active:scale-95 flex items-center justify-center shrink-0 cursor-pointer"
               >
                 <HiXMark className="w-5.5 h-5.5 text-slate-500 dark:text-slate-300" />
               </button>
@@ -139,6 +146,8 @@ const Sidebar = ({ isOpen, onClose }) => {
                         key={item.name}
                         to={item.path}
                         onClick={() => onClose && onClose()}
+                        onMouseEnter={() => handlePrefetch(item.path)}
+                        onFocus={() => handlePrefetch(item.path)}
                         className={`flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-semibold text-sm transition-all duration-200 ${
                           isActive
                             ? 'bg-linear-to-r from-[#018ABE] to-[#089790] text-white shadow-md shadow-[#089790]/25'
@@ -165,6 +174,8 @@ const Sidebar = ({ isOpen, onClose }) => {
               <NavLink
                 to="/settings"
                 onClick={() => onClose && onClose()}
+                onMouseEnter={() => handlePrefetch('/settings')}
+                onFocus={() => handlePrefetch('/settings')}
                 className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-2xl font-semibold text-sm transition-all duration-200 ${
                   location.pathname === '/settings'
                     ? 'bg-linear-to-r from-[#018ABE] to-[#089790] text-white shadow-md shadow-[#089790]/25'
@@ -177,7 +188,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
               <button
                 onClick={() => setShowLogoutModal(true)}
-                className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-2xl font-semibold text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all text-left"
+                className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-2xl font-semibold text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all text-left cursor-pointer"
               >
                 <HiArrowRightOnRectangle className="w-4.5 h-4.5" />
                 <span>Log out</span>
@@ -210,13 +221,13 @@ const Sidebar = ({ isOpen, onClose }) => {
           <div className="flex items-center space-x-3 pt-2">
             <button
               onClick={() => setShowLogoutModal(false)}
-              className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+              className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirmLogout}
-              className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-500/20 transition-all"
+              className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-500/20 transition-all cursor-pointer"
             >
               Log Out
             </button>
@@ -227,4 +238,4 @@ const Sidebar = ({ isOpen, onClose }) => {
   );
 };
 
-export default Sidebar;
+export default React.memo(Sidebar);

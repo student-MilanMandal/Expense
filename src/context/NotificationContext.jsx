@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext();
@@ -23,7 +23,7 @@ export const NotificationProvider = ({ children }) => {
     localStorage.setItem(storageKey, JSON.stringify(notifications));
   }, [notifications, storageKey]);
 
-  const addNotification = ({ title, message, type = 'SYSTEM' }) => {
+  const addNotification = useCallback(({ title, message, type = 'SYSTEM' }) => {
     const newNotif = {
       id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       title,
@@ -34,40 +34,40 @@ export const NotificationProvider = ({ children }) => {
     };
 
     setNotifications((prev) => [newNotif, ...prev]);
-  };
+  }, []);
 
-  const markAsRead = (id) => {
+  const markAsRead = useCallback((id) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
-  };
+  }, []);
 
-  const markAllAsRead = () => {
+  const markAllAsRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
+  }, []);
 
-  const removeNotification = (id) => {
+  const removeNotification = useCallback((id) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
+  }, []);
 
-  const clearAllNotifications = () => {
+  const clearAllNotifications = useCallback(() => {
     setNotifications([]);
-  };
+  }, []);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+
+  const value = useMemo(() => ({
+    notifications,
+    unreadCount,
+    addNotification,
+    markAsRead,
+    markAllAsRead,
+    removeNotification,
+    clearAllNotifications,
+  }), [notifications, unreadCount, addNotification, markAsRead, markAllAsRead, removeNotification, clearAllNotifications]);
 
   return (
-    <NotificationContext.Provider
-      value={{
-        notifications,
-        unreadCount,
-        addNotification,
-        markAsRead,
-        markAllAsRead,
-        removeNotification,
-        clearAllNotifications,
-      }}
-    >
+    <NotificationContext.Provider value={value}>
       {children}
     </NotificationContext.Provider>
   );

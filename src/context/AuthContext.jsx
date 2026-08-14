@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import axiosClient from '../api/axiosClient';
 
 const AuthContext = createContext();
@@ -15,12 +15,12 @@ export const AuthProvider = ({ children }) => {
     return !(savedUser && savedToken);
   });
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
     setToken('');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-  };
+  }, []);
 
   // Fetch full user profile on app load if token exists
   useEffect(() => {
@@ -34,8 +34,6 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (error) {
           console.error('Auth verification failed:', error);
-          // Only logout if server explicitly responded with 401 Unauthorized (token invalid/expired)
-          // Do not logout on network connection errors or server restart/503 states
           if (error.response && error.response.status === 401) {
             logout();
           }
@@ -45,9 +43,9 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkAuth();
-  }, [token]);
+  }, [token, logout]);
 
-  const login = async (credentials) => {
+  const login = useCallback(async (credentials) => {
     const res = await axiosClient.post('/auth/login', credentials);
     if (res.data.success && res.data.data) {
       const userData = res.data.data;
@@ -58,9 +56,9 @@ export const AuthProvider = ({ children }) => {
       return res.data;
     }
     throw new Error(res.data.message || 'Login failed');
-  };
+  }, []);
 
-  const register = async (userData) => {
+  const register = useCallback(async (userData) => {
     const res = await axiosClient.post('/auth/register', userData);
     if (res.data.success && res.data.data) {
       const newUser = res.data.data;
@@ -71,33 +69,32 @@ export const AuthProvider = ({ children }) => {
       return res.data;
     }
     throw new Error(res.data.message || 'Registration failed');
-  };
+  }, []);
 
-  const sendOTP = async (email) => {
+  const sendOTP = useCallback(async (email) => {
     const res = await axiosClient.post('/auth/sendOTP', { email });
     return res.data;
-  };
+  }, []);
 
-  const verifyOTP = async (email, otp) => {
+  const verifyOTP = useCallback(async (email, otp) => {
     const res = await axiosClient.post('/auth/verifyOTP', { email, otp });
     return res.data;
-  };
+  }, []);
 
-  const forgotPassword = async (email) => {
+  const forgotPassword = useCallback(async (email) => {
     const res = await axiosClient.post('/auth/forgotPassword', { email });
     return res.data;
-  };
+  }, []);
 
-  const resetPassword = async (data) => {
+  const resetPassword = useCallback(async (data) => {
     const res = await axiosClient.post('/auth/resetPassword', data);
     return res.data;
-  };
+  }, []);
 
-  const updateProfile = async (formData) => {
-    const res = await axiosClient.put('/auth/updateProfile', formData, {
-      headers: {
-        'Content-Type': formData instanceof FormData ? 'multipart/form-data' : 'application/json',
-      },
+  const updateProfile = useCallback(async (formDataOrJson) => {
+    const isFormData = formDataOrJson instanceof FormData;
+    const res = await axiosClient.put('/auth/updateProfile', formDataOrJson, {
+      headers: isFormData ? undefined : { 'Content-Type': 'application/json' },
     });
     if (res.data.success && res.data.data) {
       const updatedUser = res.data.data;
@@ -110,25 +107,25 @@ export const AuthProvider = ({ children }) => {
       return res.data;
     }
     throw new Error(res.data.message || 'Profile update failed');
-  };
+  }, []);
+
+  const contextValue = useMemo(() => ({
+    user,
+    token,
+    loading,
+    isAuthenticated: !!token && !!user,
+    login,
+    register,
+    sendOTP,
+    verifyOTP,
+    forgotPassword,
+    resetPassword,
+    updateProfile,
+    logout,
+  }), [user, token, loading, login, register, sendOTP, verifyOTP, forgotPassword, resetPassword, updateProfile, logout]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        loading,
-        isAuthenticated: !!token && !!user,
-        login,
-        register,
-        sendOTP,
-        verifyOTP,
-        forgotPassword,
-        resetPassword,
-        updateProfile,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

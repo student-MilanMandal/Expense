@@ -32,7 +32,6 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.join(__dirname, '..');
-const DIST = path.join(ROOT, 'dist');
 
 // Middleware
 app.use(helmet({ crossOriginResourcePolicy: false, contentSecurityPolicy: false }));
@@ -41,9 +40,17 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// Static files
+// Static files (uploads only)
 app.use('/uploads', express.static(path.join(ROOT, 'uploads')));
-app.use(express.static(DIST));
+
+// Root info
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'ExpensePilot API Server is Running 🚀',
+    health: '/api/health',
+  });
+});
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -56,30 +63,20 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Live SMTP Diagnostic Test Endpoint
+// Live Email Diagnostic Test Endpoint
 app.get('/api/test-email', async (req, res) => {
   try {
-    const mailUser = process.env.MAIL_USER ? process.env.MAIL_USER.trim().replace(/["']/g, '') : '';
-    const mailPass = process.env.MAIL_PASS ? process.env.MAIL_PASS.trim().replace(/["']/g, '') : '';
-
-    if (!mailUser || !mailPass) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing MAIL_USER or MAIL_PASS in Render Environment Variables',
-        configuredUser: mailUser || 'EMPTY',
-        passLength: mailPass.length,
-      });
-    }
+    const recipient = req.query.to?.trim() || process.env.MAIL_USER?.trim() || 'delivered@resend.dev';
 
     const testResult = await mailSender(
-      mailUser,
-      'ExpensePilot Render Live Test Email',
-      '<h2>Render SMTP Live Diagnostic Test Success! 🎉</h2>'
+      recipient,
+      'ExpensePilot Live Diagnostic Test Email',
+      '<h2>ExpensePilot Email Diagnostic Test Success! 🎉</h2><p>Resend / Email integration is functioning properly.</p>'
     );
 
     return res.json({
       success: true,
-      message: `Test email successfully dispatched to ${mailUser}`,
+      message: `Test email successfully dispatched to ${recipient}`,
       result: testResult,
     });
   } catch (err) {
@@ -123,16 +120,6 @@ app.use('/api/loans', loanRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/reports', reportsRoutes);
-
-// React Router fallback for SPA non-API routes
-app.get(/^(?!\/api).*/, (req, res, next) => {
-  const indexFile = path.join(DIST, 'index.html');
-  if (fs.existsSync(indexFile)) {
-    res.sendFile(indexFile);
-  } else {
-    next();
-  }
-});
 
 // Error handling
 app.use(notFound);

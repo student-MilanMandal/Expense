@@ -141,12 +141,12 @@ export const authService = {
       password,
       currency,
       themePreference,
-      otp,
+      // otp, // OTP bypassed as requested
     } = payload;
 
-    if (!name || !email || !password || !otp) {
+    if (!name || !email || !password) {
       throw new Error(
-        'Name, email, password, and OTP are required'
+        'Name, email, and password are required'
       );
     }
 
@@ -164,9 +164,9 @@ export const authService = {
     }
 
     /*
-     * OTP verification is mandatory for registration.
+     * OTP verification bypassed as requested:
+     * await authService.verifyOTP(cleanEmail, otp);
      */
-    await authService.verifyOTP(cleanEmail, otp);
 
     // Create user
     const user = await User.create({
@@ -177,7 +177,7 @@ export const authService = {
       themePreference: themePreference || 'dark',
     });
 
-    // OTP no longer needed
+    // Delete any pending OTPs for clean state
     await OTP.deleteMany({
       email: cleanEmail,
     });
@@ -307,10 +307,8 @@ export const authService = {
   resetPassword: async (email, otp, newPassword) => {
     const cleanEmail = normalizeEmail(email);
 
-    if (!otp || !newPassword) {
-      throw new Error(
-        'OTP and new password are required'
-      );
+    if (!newPassword) {
+      throw new Error('New password is required');
     }
 
     if (newPassword.length < 6) {
@@ -319,8 +317,10 @@ export const authService = {
       );
     }
 
-    // Verify OTP
-    await authService.verifyOTP(cleanEmail, otp);
+    /*
+     * OTP verification bypassed as requested:
+     * await authService.verifyOTP(cleanEmail, otp);
+     */
 
     // Find user
     const user = await User.findOne({
@@ -393,7 +393,17 @@ export const authService = {
     }
 
     // Handle avatar
-    if (file) {
+    if (payload.avatar && typeof payload.avatar === 'string' && payload.avatar.trim().length > 0) {
+      user.avatar = payload.avatar.trim();
+      if (file && file.path && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+    } else if (payload.avatarBase64 && typeof payload.avatarBase64 === 'string' && payload.avatarBase64.startsWith('data:image/')) {
+      user.avatar = payload.avatarBase64;
+      if (file && file.path && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+    } else if (file) {
       if (
         process.env.CLOUD_NAME &&
         process.env.API_KEY &&
@@ -410,21 +420,24 @@ export const authService = {
           }
         } catch (cloudErr) {
           console.warn(
-            'Cloudinary upload failed:',
+            'Cloudinary upload failed, falling back to base64 Data URI:',
             cloudErr.message
           );
 
-          user.avatar = `/uploads/${path.basename(
-            file.path
-          )}`;
+          if (file.path && fs.existsSync(file.path)) {
+            const fileData = fs.readFileSync(file.path);
+            const mimeType = file.mimetype || 'image/jpeg';
+            user.avatar = `data:${mimeType};base64,${fileData.toString('base64')}`;
+            fs.unlinkSync(file.path);
+          }
         }
-      } else {
-        user.avatar = `/uploads/${path.basename(
-          file.path
-        )}`;
+      } else if (file.path && fs.existsSync(file.path)) {
+        // High reliability Base64 Data URI (persist in MongoDB, never 404s across Vercel/Render)
+        const fileData = fs.readFileSync(file.path);
+        const mimeType = file.mimetype || 'image/jpeg';
+        user.avatar = `data:${mimeType};base64,${fileData.toString('base64')}`;
+        fs.unlinkSync(file.path);
       }
-    } else if (payload.avatar) {
-      user.avatar = payload.avatar;
     }
 
     // Update password

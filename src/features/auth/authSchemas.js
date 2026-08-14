@@ -20,6 +20,6 @@ export const forgotPasswordSchema = z.object({
 });
 
 export const resetPasswordSchema = z.object({
-  otp: z.string().min(4, 'OTP code is required'),
+  otp: z.string().optional(),
   newPassword: z.string().min(6, 'Password must be at least 6 characters'),
 });

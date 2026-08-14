@@ -1,6 +1,12 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const defaultRenderUrl = 'https://expense-tracker-u23y.onrender.com/api';
+const rawBaseUrl = (import.meta.env.VITE_API_URL || '').trim();
+
+// Automatically connect to Render backend in production if VITE_API_URL is not explicitly set
+const API_BASE_URL = rawBaseUrl
+  ? (rawBaseUrl.replace(/\/+$/, '').endsWith('/api') ? rawBaseUrl.replace(/\/+$/, '') : `${rawBaseUrl.replace(/\/+$/, '')}/api`)
+  : (import.meta.env.DEV ? '/api' : defaultRenderUrl);
 
 const axiosClient = axios.create({
   baseURL: API_BASE_URL,

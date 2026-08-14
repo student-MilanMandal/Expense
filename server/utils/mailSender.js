@@ -1,37 +1,58 @@
+import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
-import dns from 'dns';
 
-try {
-  dns.setDefaultResultOrder('ipv4first');
-} catch (error) {
-  // Ignore
-}
-
-// Custom IPv4-only DNS lookup function to prevent ENETUNREACH IPv6 errors
-const ipv4Lookup = (hostname, options, callback) => {
-  return dns.lookup(hostname, { family: 4 }, callback);
-};
-
+/**
+ * Mail sender utility for OTP and notifications
+ * Supports Resend (Primary) with Gmail SMTP as fallback.
+ *
+ * @param {string} email - Recipient email address
+ * @param {string} title - Email subject
+ * @param {string} body - HTML email body
+ */
 const mailSender = async (email, title, body) => {
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  const resendFrom = process.env.RESEND_FROM?.trim() || 'ExpensePilot <onboarding@resend.dev>';
+
+  // 1. Resend Email Delivery (Primary)
+  if (resendApiKey && resendApiKey !== 're_your_resend_api_key_here') {
+    try {
+      const resend = new Resend(resendApiKey);
+
+      const { data, error } = await resend.emails.send({
+        from: resendFrom,
+        to: [email],
+        subject: title,
+        html: body,
+      });
+
+      if (error) {
+        console.error('❌ Resend API error:', error.message || error);
+        throw new Error(error.message || 'Failed to send email via Resend');
+      }
+
+      console.log(`✅ Email delivered via Resend to ${email} (ID: ${data?.id})`);
+      return data;
+    } catch (err) {
+      console.warn('⚠️ Resend failed, attempting fallback if available:', err.message);
+      // If no SMTP fallback is configured, rethrow the Resend error
+      if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+        throw err;
+      }
+    }
+  }
+
+  // 2. Gmail SMTP Backup (Fallback)
   const mailUser = process.env.MAIL_USER?.trim();
   const mailPass = process.env.MAIL_PASS?.trim().replace(/\s+/g, '');
-  const resendApiKey = process.env.RESEND_API_KEY?.trim();
 
-  // 1. Primary Method: Gmail SMTP Port 465 (SSL) with Forced IPv4 Lookup
   if (mailUser && mailPass) {
     try {
       const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        lookup: ipv4Lookup,
+        service: 'gmail',
         auth: {
           user: mailUser,
           pass: mailPass,
         },
-        connectionTimeout: 8000,
-        greetingTimeout: 8000,
-        socketTimeout: 10000,
       });
 
       const info = await transporter.sendMail({
@@ -41,76 +62,17 @@ const mailSender = async (email, title, body) => {
         html: body,
       });
 
-      console.log('✅ Gmail SMTP (Port 465) Result:', info.messageId);
+      console.log(`✅ Email delivered via Gmail SMTP to ${email} (ID: ${info.messageId})`);
       return info;
     } catch (smtpErr) {
-      console.warn('⚠️ Gmail SMTP (Port 465) failed, trying Port 587 fallback:', smtpErr.message);
-
-      // Fallback: Gmail SMTP Port 587 (STARTTLS) with Forced IPv4 Lookup
-      try {
-        const transporter587 = nodemailer.createTransport({
-          host: 'smtp.gmail.com',
-          port: 587,
-          secure: false,
-          requireTLS: true,
-          lookup: ipv4Lookup,
-          auth: {
-            user: mailUser,
-            pass: mailPass,
-          },
-          connectionTimeout: 8000,
-          greetingTimeout: 8000,
-          socketTimeout: 10000,
-        });
-
-        const info587 = await transporter587.sendMail({
-          from: `"ExpensePilot" <${mailUser}>`,
-          to: email,
-          subject: title,
-          html: body,
-        });
-
-        console.log('✅ Gmail SMTP (Port 587) Result:', info587.messageId);
-        return info587;
-      } catch (smtp587Err) {
-        console.warn('⚠️ Gmail SMTP (Port 587) failed:', smtp587Err.message);
-      }
+      console.error('❌ Gmail SMTP error:', smtpErr.message);
+      throw smtpErr;
     }
   }
 
-  // 2. Secondary Fallback Method: Resend HTTP API
-  if (resendApiKey) {
-    try {
-      const fromAddress = process.env.SENDER_EMAIL?.trim() || 'onboarding@resend.dev';
-      const formattedFrom = fromAddress.includes('<') ? fromAddress : `ExpensePilot <${fromAddress}>`;
-
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${resendApiKey}`,
-        },
-        body: JSON.stringify({
-          from: formattedFrom,
-          to: [email],
-          subject: title,
-          html: body,
-        }),
-        signal: AbortSignal.timeout(4000),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        console.log('✅ Resend API Result:', data.id);
-        return data;
-      }
-      console.warn('⚠️ Resend API response notice:', data.message || JSON.stringify(data));
-    } catch (resendErr) {
-      console.warn('⚠️ Resend API fetch error:', resendErr.message);
-    }
-  }
-
-  throw new Error('All email delivery attempts failed. Please check network connectivity and SMTP configuration.');
+  // If no email service is configured
+  console.warn('⚠️ No email service configured. Please add RESEND_API_KEY in your .env file.');
+  throw new Error('Email service not configured. Please set RESEND_API_KEY in .env');
 };
 
 export default mailSender;

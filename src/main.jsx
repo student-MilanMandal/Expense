@@ -12,7 +12,10 @@ import { NotificationProvider } from './context/NotificationContext';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 5 * 60 * 1000, // Data remains fresh for 5 minutes (Instant 0ms tab switching)
+      gcTime: 15 * 60 * 1000,    // Preserved in memory for 15 minutes
       refetchOnWindowFocus: false,
+      refetchOnMount: false,     // Never show loading skeleton if fresh data exists in cache
       retry: 1,
     },
   },

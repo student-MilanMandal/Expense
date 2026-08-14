@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -23,6 +23,7 @@ import {
   HiBanknotes,
   HiMagnifyingGlass,
 } from 'react-icons/hi2';
+import { getAvatarSrc } from '../../utils/avatarUtils';
 
 // Production-grade Notification Configuration Map (O(1) Constant Time Lookup)
 const NOTIFICATION_CONFIG = {
@@ -191,10 +192,16 @@ const Navbar = ({ onOpenSidebar }) => {
       }
     };
 
-    if (user?._id) checkSystemAlerts();
+    let timer;
+    if (user?._id) {
+      timer = setTimeout(() => {
+        if (isMounted) checkSystemAlerts();
+      }, 1500);
+    }
 
     return () => {
       isMounted = false;
+      if (timer) clearTimeout(timer);
     };
   }, [user?._id]);
 
@@ -214,7 +221,7 @@ const Navbar = ({ onOpenSidebar }) => {
     }
   };
 
-  const getInitials = (name) => {
+  const getInitials = useCallback((name) => {
     if (!name) return 'U';
     return name
       .split(' ')
@@ -222,10 +229,10 @@ const Navbar = ({ onOpenSidebar }) => {
       .join('')
       .toUpperCase()
       .slice(0, 2);
-  };
+  }, []);
 
   // Helper to count items per tab
-  const getTabCount = (tabName) => {
+  const getTabCount = useCallback((tabName) => {
     return notifications.filter((n) => {
       const past = new Date(n.timestamp || Date.now());
       const now = new Date();
@@ -237,20 +244,22 @@ const Navbar = ({ onOpenSidebar }) => {
       if (tabName === 'This Week') return diffDays <= 7;
       return true;
     }).length;
-  };
+  }, [notifications]);
 
   // Filter notifications by Tab
-  const filteredNotifications = notifications.filter((n) => {
-    if (!n.timestamp) return true;
-    const past = new Date(n.timestamp);
-    const now = new Date();
-    const diffHours = (now - past) / (1000 * 60 * 60);
-    const diffDays = diffHours / 24;
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((n) => {
+      if (!n.timestamp) return true;
+      const past = new Date(n.timestamp);
+      const now = new Date();
+      const diffHours = (now - past) / (1000 * 60 * 60);
+      const diffDays = diffHours / 24;
 
-    if (activeTab === 'Today') return diffHours < 24;
-    if (activeTab === 'This Week') return diffDays <= 7;
-    return true;
-  });
+      if (activeTab === 'Today') return diffHours < 24;
+      if (activeTab === 'This Week') return diffDays <= 7;
+      return true;
+    });
+  }, [notifications, activeTab]);
 
   const rawFirstName = user?.name ? user.name.split(' ')[0] : 'User';
   const formattedFirstName = rawFirstName
@@ -416,7 +425,7 @@ const Navbar = ({ onOpenSidebar }) => {
             >
               {user?.avatar && !imgError ? (
                 <img
-                  src={user.avatar}
+                  src={getAvatarSrc(user.avatar)}
                   alt={user.name}
                   onError={() => setImgError(true)}
                   className="w-9.5 h-9.5 sm:w-9 sm:h-9 rounded-full object-cover shadow-xs border border-slate-200/80 dark:border-slate-800/80 sm:border-0"
@@ -445,7 +454,7 @@ const Navbar = ({ onOpenSidebar }) => {
                 <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 flex items-center space-x-3">
                   {user?.avatar && !imgError ? (
                     <img
-                      src={user.avatar}
+                      src={getAvatarSrc(user.avatar)}
                       alt={user.name}
                       className="w-9 h-9 rounded-full object-cover"
                     />
@@ -521,4 +530,4 @@ const Navbar = ({ onOpenSidebar }) => {
   );
 };
 
-export default Navbar;
+export default React.memo(Navbar);
